@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ngapori Ranch — Vegetable CASN Founder Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EAE6D9;
+    --panel:#FBF9F2;
+    --panel-2:#F3EFE1;
+    --ink:#2B2A22;
+    --ink-soft:#6B6857;
+    --forest:#1B4332;
+    --forest-mid:#2D6A4F;
+    --gold:#A9820A;
+    --gold-fill:#F3E4B0;
+    --rust:#9C3B2C;
+    --rust-fill:#F1D9D1;
+    --sage:#8FA878;
+    --sage-fill:#DCE6D2;
+    --line:#D9D2BC;
+    --shadow: 0 1px 2px rgba(43,42,34,0.06), 0 4px 14px rgba(43,42,34,0.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at top left, rgba(255,255,255,0.4), transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:28px 22px 60px;}
+
+  /* ---------- Header ---------- */
+  header{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    flex-wrap:wrap; gap:16px;
+    border-bottom:2px solid var(--forest);
+    padding-bottom:18px; margin-bottom:22px;
+  }
+  .brand-eyebrow{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--forest-mid); margin:0 0 6px;
+  }
+  h1{
+    font-family:'Fraunces',serif; font-weight:600; font-size:clamp(26px,3.4vw,38px);
+    margin:0; color:var(--forest); letter-spacing:-0.01em; line-height:1.05;
+  }
+  .header-right{text-align:right; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft);}
+  .conn-dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; background:var(--ink-soft); vertical-align:1px;}
+  .conn-dot.live{background:var(--sage);}
+  .conn-dot.demo{background:var(--gold);}
+
+  /* ---------- Hero SCR band ---------- */
+  .hero{
+    background:var(--forest); color:#fff; border-radius:10px;
+    padding:26px 30px; display:flex; align-items:center; justify-content:space-between;
+    gap:24px; flex-wrap:wrap; margin-bottom:20px; box-shadow:var(--shadow);
+    position:relative; overflow:hidden;
+  }
+  .hero::after{
+    content:""; position:absolute; right:-40px; top:-40px; width:180px; height:180px;
+    border-radius:50%; background:rgba(255,255,255,0.05);
+  }
+  .hero-label{font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:0.1em; text-transform:uppercase; opacity:0.75; margin:0 0 6px;}
+  .hero-value{font-family:'Fraunces',serif; font-weight:600; font-size:64px; line-height:1; margin:0;}
+  .hero-sub{font-size:13px; opacity:0.8; margin-top:6px; max-width:420px;}
+  .pill{
+    display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:999px;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; letter-spacing:0.02em;
+  }
+  .pill.ok{background:var(--sage-fill); color:#2F4A22;}
+  .pill.bad{background:var(--rust-fill); color:var(--rust);}
+  .pill.neutral{background:rgba(255,255,255,0.14); color:#fff;}
+  .hero-stats{display:flex; gap:26px; flex-wrap:wrap;}
+  .hero-stat{text-align:right;}
+  .hero-stat .n{font-family:'Fraunces',serif; font-size:30px; font-weight:600;}
+  .hero-stat .l{font-family:'IBM Plex Mono',monospace; font-size:10px; opacity:0.75; text-transform:uppercase; letter-spacing:0.08em;}
+
+  /* ---------- Grid of panels ---------- */
+  .grid{display:grid; grid-template-columns:repeat(12,1fr); gap:16px;}
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:20px 22px; box-shadow:var(--shadow);
+  }
+  .panel h2{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase;
+    letter-spacing:0.08em; color:var(--forest-mid); margin:0 0 14px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .panel h2 .count-badge{
+    background:var(--panel-2); color:var(--ink); border-radius:5px; padding:2px 8px;
+    font-size:11px; font-weight:600;
+  }
+  .panel h2 .count-badge.alert{background:var(--rust-fill); color:var(--rust);}
+
+  .col-8{grid-column: span 8;}
+  .col-4{grid-column: span 4;}
+  .col-6{grid-column: span 6;}
+  .col-12{grid-column: span 12;}
+
+  /* ---------- Signature: literal 200-bed field map ---------- */
+  .field-map{
+    display:grid; grid-template-columns:repeat(20,1fr); gap:3px;
+  }
+  .bed-sq{
+    aspect-ratio:1/1; border-radius:2px; background:var(--line);
+    transition:transform 0.15s ease;
+  }
+  .bed-sq:hover{transform:scale(1.35); z-index:2; position:relative;}
+  .field-legend{display:flex; flex-wrap:wrap; gap:10px 16px; margin-top:14px; font-size:11px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;}
+  .field-legend span{display:inline-flex; align-items:center; gap:6px;}
+  .field-legend i{width:10px; height:10px; border-radius:2px; display:inline-block;}
+
+  /* state colors */
+  .s-available{background:#E4E0D0;}
+  .s-planted{background:#C9DCC0;}
+  .s-growing{background:#8FBF7A;}
+  .s-harvestable{background:var(--forest-mid);}
+  .s-harvested{background:#5C7A99;}
+  .s-cleanup{background:var(--gold);}
+  .s-cover{background:#B79C6B;}
+  .s-replant{background:#C7B8E0;}
+
+  /* ---------- Greenhouse bays ---------- */
+  .bay-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .bay{
+    width:46px; height:46px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; color:#fff;
+  }
+  .bay.Active{background:var(--forest-mid);}
+  .bay.Idle{background:var(--rust);}
+  .bay.Maintenance{background:var(--ink-soft);}
+  .bay.Sanitizing{background:#5C7A99;}
+
+  /* ---------- SCR by crop table ---------- */
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{
+    text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase;
+    letter-spacing:0.06em; color:var(--ink-soft); border-bottom:1px solid var(--line); padding:6px 8px;
+  }
+  td{padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .scr-bar-wrap{background:var(--panel-2); border-radius:4px; height:8px; width:100%; overflow:hidden;}
+  .scr-bar{height:100%; border-radius:4px;}
+  .scr-num{font-family:'IBM Plex Mono',monospace; font-weight:600;}
+
+  /* ---------- Escalations ---------- */
+  .esc-item{
+    border-left:3px solid var(--rust); background:var(--rust-fill); border-radius:0 6px 6px 0;
+    padding:10px 12px; margin-bottom:8px;
+  }
+  .esc-item .esc-type{font-weight:600; font-size:13px; color:var(--rust);}
+  .esc-item .esc-meta{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); margin-top:2px;}
+  .esc-empty{color:var(--ink-soft); font-size:13px; font-style:italic;}
+
+  /* ---------- Storage / stat blocks ---------- */
+  .stat-big{font-family:'Fraunces',serif; font-size:38px; font-weight:600; color:var(--forest); line-height:1;}
+  .stat-label{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.06em; margin-top:4px;}
+  .stat-row{display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:18px;}
+
+  /* ---------- Delivery pills ---------- */
+  .delivery-row{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--line);}
+  .delivery-row:last-child{border-bottom:none;}
+
+  /* ---------- Config bar ---------- */
+  .config{
+    margin-top:26px; padding:16px 20px; background:var(--panel-2); border:1px dashed var(--line);
+    border-radius:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    font-family:'IBM Plex Mono',monospace; font-size:12px;
+  }
+  .config input{
+    flex:1; min-width:240px; padding:8px 10px; border-radius:6px; border:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace; font-size:12px; background:#fff; color:var(--ink);
+  }
+  .config button{
+    padding:8px 16px; border-radius:6px; border:none; background:var(--forest); color:#fff;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; cursor:pointer;
+  }
+  .config button:hover{background:var(--forest-mid);}
+  .config .msg{color:var(--ink-soft); font-size:11px;}
+
+  @media (max-width:800px){
+    .col-8,.col-6,.col-4{grid-column: span 12;}
+    .hero{flex-direction:column; align-items:flex-start;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <p class="brand-eyebrow">Redwood Custodian LLC · Ngapori Ranch</p>
+      <h1>Vegetable CASN — Founder Oversight</h1>
+    </div>
+    <div class="header-right">
+      <div><span class="conn-dot demo" id="connDot"></span><span id="connLabel">Demo data — connect your endpoint below</span></div>
+      <div id="asOf">As of —</div>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div>
+      <p class="hero-label">Master Supply Coverage Ratio</p>
+      <p class="hero-value" id="masterScr">—</p>
+      <p class="hero-sub">Total available supply (Channels A+B+C) ÷ total weekly restaurant demand, across all 8 crop categories. Below 1.00 requires Channel D (Bridge Layer) activation.</p>
+      <div style="margin-top:12px;"><span class="pill neutral" id="scrPill">—</span></div>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="n" id="belowTargetCount">—</div><div class="l">Crops below SCR 1.00</div></div>
+      <div class="hero-stat"><div class="n" id="openEscCount">—</div><div class="l">Open escalations</div></div>
+      <div class="hero-stat"><div class="n" id="idleBedCount">—</div><div class="l">Beds idle &gt;14 days</div></div>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- Field Bed Map -->
+    <div class="panel col-8">
+      <h2>Field Bed Map — 200 Beds / 10 Pads <span class="count-badge" id="bedTotalBadge">200</span></h2>
+      <div class="field-map" id="fieldMap"></div>
+      <div class="field-legend" id="fieldLegend"></div>
+    </div>
+
+    <!-- Greenhouse Bays -->
+    <div class="panel col-4">
+      <h2>Greenhouse — 10 Bays <span class="count-badge alert" id="idleBayBadge">0 idle</span></h2>
+      <div class="bay-row" id="bayGrid"></div>
+      <div class="field-legend" style="margin-top:16px;">
+        <span><i style="background:var(--forest-mid)"></i>Active</span>
+        <span><i style="background:var(--rust)"></i>Idle</span>
+        <span><i style="background:var(--ink-soft)"></i>Maintenance</span>
+        <span><i style="background:#5C7A99"></i>Sanitizing</span>
+      </div>
+    </div>
+
+    <!-- SCR by crop -->
+    <div class="panel col-8">
+      <h2>Supply Coverage Ratio by Crop Category</h2>
+      <table>
+        <thead><tr><th>Crop Category</th><th>Supply / Demand</th><th style="width:130px;">SCR</th><th>Status</th></tr></thead>
+        <tbody id="scrTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Storage -->
+    <div class="panel col-4">
+      <h2>Storage Reserve — Channel C</h2>
+      <div class="stat-row">
+        <div>
+          <div class="stat-big" id="storageBalance">—</div>
+          <div class="stat-label">lb total balance</div>
+        </div>
+        <span class="pill" id="storagePill">—</span>
+      </div>
+      <div style="font-size:12px; color:var(--ink-soft);">Cold-room tolerance: 34–38°F. Out-of-range readings surface here and on the workbook's Storage Reserve tab.</div>
+    </div>
+
+    <!-- Escalations -->
+    <div class="panel col-7">
+      <h2>Active Escalations <span class="count-badge alert" id="escBadge">0</span></h2>
+      <div id="escList"></div>
+    </div>
+
+    <!-- Delivery status -->
+    <div class="panel col-5">
+      <h2>This Week's Delivery Status</h2>
+      <div class="delivery-row"><span>Route 1 — Thursday</span><span class="pill neutral" id="route1Pill">Pending</span></div>
+      <div class="delivery-row"><span>Route 2 — Friday</span><span class="pill neutral" id="route2Pill">Pending</span></div>
+      <div style="font-size:11px; color:var(--ink-soft); margin-top:12px; font-family:'IBM Plex Mono',monospace;">
+        Delivery status is set manually on the Founder Dashboard tab of the workbook until the reconciliation flow is wired up.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="config">
+    <span>Apps Script /exec URL:</span>
+    <input type="text" id="endpointInput" placeholder="https://script.google.com/macros/s/XXXXX/exec">
+    <button id="connectBtn">Connect</button>
+    <button id="refreshBtn" style="background:var(--forest-mid);">Refresh</button>
+    <span class="msg" id="configMsg">Currently showing demo data. Paste your deployed Code.gs /exec URL to go live.</span>
+  </div>
+
+</div>
+
+<script>
+  // ---------- Demo data (matches getDashboard() shape from Code.gs) ----------
+  const DEMO_DATA = {
+    asOf: new Date().toISOString().slice(0,10),
+    scr: {
+      master: 0.92,
+      belowTargetCropCount: 2,
+      byCropCategory: [
+        { cropCategory: "Leafy Greens", totalSupply: 480, weeklyDemand: 500, scr: 0.96, bridgeStatus: "OK" },
+        { cropCategory: "African Greens", totalSupply: 210, weeklyDemand: 180, scr: 1.17, bridgeStatus: "OK" },
+        { cropCategory: "Brassicas", totalSupply: 140, weeklyDemand: 200, scr: 0.70, bridgeStatus: "ACTIVATE CHANNEL D" },
+        { cropCategory: "Root Crops", totalSupply: 300, weeklyDemand: 260, scr: 1.15, bridgeStatus: "OK" },
+        { cropCategory: "Tubers & Perennials", totalSupply: 90, weeklyDemand: 100, scr: 0.90, bridgeStatus: "OK" },
+        { cropCategory: "Fruiting Crops", totalSupply: 260, weeklyDemand: 320, scr: 0.81, bridgeStatus: "ACTIVATE CHANNEL D" },
+        { cropCategory: "Aromatics & Herbs", totalSupply: 75, weeklyDemand: 70, scr: 1.07, bridgeStatus: "OK" },
+        { cropCategory: "Organic Grains & Covers", totalSupply: 0, weeklyDemand: 0, scr: null, bridgeStatus: "" }
+      ]
+    },
+    bedStates: { "Available": 40, "Planted": 30, "Growing": 55, "Harvestable": 35, "Harvested": 10, "Cleanup": 8, "Cover Crop / Rest": 18, "Replant / Prep": 4 },
+    bedIdleOver14Days: 3,
+    greenhouse: { Active: 8, Idle: 1, Maintenance: 1, Sanitizing: 0 },
+    storage: { totalBalanceLb: 18420, outOfToleranceCount: 0 },
+    escalations: {
+      openCount: 2,
+      open: [
+        { "Date": "2026-08-09", "Check Type": "SCR Deficit (<1.00)", "Details": "Brassicas SCR 0.70 — Field Pads 3-4 behind on succession", "Action Taken": "Channel D bridge activated for kale" },
+        { "Date": "2026-08-08", "Check Type": "30-Min Wash Violation", "Details": "Batch #114 exceeded field-to-wash window by 12 min", "Action Taken": "Batch moved to Grade B" }
+      ]
+    }
+  };
+
+  const STATE_ORDER = ["Available","Planted","Growing","Harvestable","Harvested","Cleanup","Cover Crop / Rest","Replant / Prep"];
+  const STATE_CLASS = {
+    "Available":"s-available","Planted":"s-planted","Growing":"s-growing","Harvestable":"s-harvestable",
+    "Harvested":"s-harvested","Cleanup":"s-cleanup","Cover Crop / Rest":"s-cover","Replant / Prep":"s-replant"
+  };
+
+  let endpoint = "";
+
+  function render(data){
+    document.getElementById("asOf").textContent = "As of " + (data.asOf || "—");
+
+    // Hero
+    const master = data.scr.master;
+    document.getElementById("masterScr").textContent = master === null || master === undefined ? "—" : master.toFixed(2);
+    const pill = document.getElementById("scrPill");
+    if (master === null || master === undefined) {
+      pill.textContent = "NO DATA"; pill.className = "pill neutral";
+    } else if (master < 1) {
+      pill.textContent = "BELOW TARGET — CHANNEL D REQUIRED"; pill.className = "pill bad";
+    } else {
+      pill.textContent = "ON TARGET"; pill.className = "pill ok";
+    }
+    document.getElementById("belowTargetCount").textContent = data.scr.belowTargetCropCount;
+    document.getElementById("openEscCount").textContent = data.escalations.openCount;
+    document.getElementById("idleBedCount").textContent = data.bedIdleOver14Days;
+
+    // Field map — build 200 squares proportionally from state counts
+    const fm = document.getElementById("fieldMap");
+    fm.innerHTML = "";
+    let squares = [];
+    STATE_ORDER.forEach(state => {
+      const count = data.bedStates[state] || 0;
+      for (let i=0;i<count;i++) squares.push(state);
+    });
+    while (squares.length < 200) squares.push("Available");
+    squares.slice(0,200).forEach(state => {
+      const sq = document.createElement("div");
+      sq.className = "bed-sq " + (STATE_CLASS[state] || "s-available");
+      sq.title = state;
+      fm.appendChild(sq);
+    });
+    document.getElementById("bedTotalBadge").textContent = squares.length + " beds";
+
+    const legend = document.getElementById("fieldLegend");
+    legend.innerHTML = "";
+    STATE_ORDER.forEach(state => {
+      const count = data.bedStates[state] || 0;
+      const item = document.createElement("span");
+      item.innerHTML = `<i class="${STATE_CLASS[state]}"></i>${state} — ${count}`;
+      legend.appendChild(item);
+    });
+
+    // Greenhouse bays — render 10 numbered chips colored by aggregate status counts
+    const bayGrid = document.getElementById("bayGrid");
+    bayGrid.innerHTML = "";
+    const statuses = [];
+    ["Active","Idle","Maintenance","Sanitizing"].forEach(s => {
+      for (let i=0;i<(data.greenhouse[s]||0);i++) statuses.push(s);
+    });
+    while (statuses.length < 10) statuses.push("Active");
+    statuses.slice(0,10).forEach((s, idx) => {
+      const b = document.createElement("div");
+      b.className = "bay " + s;
+      b.textContent = idx+1;
+      b.title = "Bay " + (idx+1) + " — " + s;
+      bayGrid.appendChild(b);
+    });
+    document.getElementById("idleBayBadge").textContent = (data.greenhouse.Idle||0) + " idle";
+
+    // SCR table
+    const tbody = document.getElementById("scrTableBody");
+    tbody.innerHTML = "";
+    data.scr.byCropCategory.forEach(row => {
+      const tr = document.createElement("tr");
+      const pct = row.scr === null ? 0 : Math.min(row.scr*50, 100);
+      const barColor = row.scr === null ? "var(--line)" : (row.scr < 1 ? "var(--rust)" : "var(--sage)");
+      const statusBadge = row.bridgeStatus === "ACTIVATE CHANNEL D"
+        ? `<span class="pill bad" style="padding:3px 10px;">CHANNEL D</span>`
+        : row.bridgeStatus === "OK" ? `<span class="pill ok" style="padding:3px 10px;">OK</span>` : "—";
+      tr.innerHTML = `
+        <td>${row.cropCategory}</td>
+        <td style="color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; font-size:12px;">${row.totalSupply} / ${row.weeklyDemand}</td>
+        <td>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="scr-num">${row.scr === null ? "—" : row.scr.toFixed(2)}</span>
+            <div class="scr-bar-wrap"><div class="scr-bar" style="width:${pct}%; background:${barColor};"></div></div>
+          </div>
+        </td>
+        <td>${statusBadge}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Storage
+    document.getElementById("storageBalance").textContent = (data.storage.totalBalanceLb || 0).toLocaleString();
+    const sp = document.getElementById("storagePill");
+    if ((data.storage.outOfToleranceCount||0) > 0) {
+      sp.textContent = data.storage.outOfToleranceCount + " OUT OF RANGE"; sp.className = "pill bad";
+    } else {
+      sp.textContent = "ALL IN RANGE"; sp.className = "pill ok";
+    }
+
+    // Escalations
+    const escList = document.getElementById("escList");
+    escList.innerHTML = "";
+    document.getElementById("escBadge").textContent = data.escalations.openCount;
+    if (!data.escalations.open || data.escalations.open.length === 0) {
+      escList.innerHTML = `<div class="esc-empty">No open escalations.</div>`;
+    } else {
+      data.escalations.open.forEach(e => {
+        const div = document.createElement("div");
+        div.className = "esc-item";
+        div.innerHTML = `
+          <div class="esc-type">${e["Check Type"] || "—"}</div>
+          <div style="font-size:12.5px; margin-top:3px;">${e["Details"] || ""}</div>
+          <div class="esc-meta">${e["Date"] || ""}${e["Action Taken"] ? " · " + e["Action Taken"] : ""}</div>
+        `;
+        escList.appendChild(div);
+      });
+    }
+  }
+
+  function setConn(mode, label){
+    document.getElementById("connDot").className = "conn-dot " + mode;
+    document.getElementById("connLabel").textContent = label;
+  }
+
+  async function loadLive(){
+    if (!endpoint) return;
+    setConn("demo", "Connecting…");
+    try {
+      const res = await fetch(endpoint + "?action=getDashboard");
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Unknown error");
+      render(json.data);
+      setConn("live", "Live — connected to Apps Script");
+      document.getElementById("configMsg").textContent = "Connected. Data pulled directly from the workbook.";
+    } catch (err) {
+      setConn("demo", "Connection failed — showing demo data");
+      document.getElementById("configMsg").textContent = "Error: " + err.message + " — check the deployment URL and that it's deployed as a web app.";
+      render(DEMO_DATA);
+    }
+  }
+
+  document.getElementById("connectBtn").addEventListener("click", () => {
+    endpoint = document.getElementById("endpointInput").value.trim().replace(/\/$/, "");
+    loadLive();
+  });
+  document.getElementById("refreshBtn").addEventListener("click", () => {
+    if (endpoint) loadLive(); else render(DEMO_DATA);
+  });
+
+  // initial render
+  render(DEMO_DATA);
+</script>
+</body>
+</html>
