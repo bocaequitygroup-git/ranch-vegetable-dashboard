@@ -250,7 +250,7 @@ const STATE_COLORS = {
   "Available":"#a9b4ac","Planted":"#b08920","Growing":"#3b6e8f","Harvestable":"#2d5a3d","Harvested":"#6b7a6f","Cover Crop / Rest":"#7a8f6b"
 };
 
-let state = { data:{}, lastUpdated:null, view:"overview", refreshMin:0, refreshTimer:null };
+let state = { data:{}, lastUpdated:null, view:"overview", refreshMin:0, refreshTimer:null, loadStatus:"loading" };
 
 /* ---------- persistence (auto-refresh preference only) ---------- */
 function loadCfg(){
@@ -292,11 +292,24 @@ function parseCSV(text){
 async function fetchSheet(key, bust){
   const cfg = SHEETS[key];
   const url = cfg.csvUrl + (bust ? `&_ts=${Date.now()}` : "");
-  const res = await fetch(url);
-  if(!res.ok) throw new Error(`Couldn't reach "${cfg.name}" (HTTP ${res.status}). Check the tab is still published to the web.`);
-  const txt = await res.text();
-  const grid = parseCSV(txt);
-  return parseGrid(grid, cfg.headerRow);
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(), 15000);
+  try{
+    const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
+    clearTimeout(timeout);
+    if(!res.ok) throw new Error(`HTTP ${res.status} for "${cfg.name}". Check the tab is still Published to the web (File → Share → Publish to web).`);
+    const txt = await res.text();
+    if(!txt || !txt.trim()) throw new Error(`"${cfg.name}" returned an empty response — the publish link may be stale. Try re-publishing that tab.`);
+    const grid = parseCSV(txt);
+    const parsed = parseGrid(grid, cfg.headerRow);
+    console.log(`[CASN] ${cfg.name}: ${parsed.rows.length} rows, headers:`, parsed.headers);
+    return parsed;
+  }catch(e){
+    clearTimeout(timeout);
+    if(e.name==="AbortError") throw new Error(`Timed out reaching "${cfg.name}" after 15s. This usually means the request is being blocked (CORS, an ad blocker, or a corporate firewall) rather than Google being slow.`);
+    console.error(`[CASN] ${cfg.name} failed:`, e);
+    throw e;
+  }
 }
 
 function parseGrid(grid, headerRowIdx){
@@ -329,9 +342,11 @@ async function loadAll(isRefresh){
     });
     state.data = data;
     state.lastUpdated = new Date();
+    state.loadStatus = failedTabs.length ? "partial" : "ok";
     if(failedTabs.length){
       setConn("err", failedTabs.length+" tab(s) failed");
-      toast(`Couldn't load: ${failedTabs.join(", ")}`, true);
+      toast(`Couldn't load: ${failedTabs.join(", ")}${firstErr?` — ${firstErr.message}`:""}`, true);
+      console.error("[CASN] load failures:", firstErr);
     } else {
       setConn("live","Live · updated "+state.lastUpdated.toLocaleTimeString());
     }
@@ -423,6 +438,7 @@ function render(){
   document.getElementById("pageSub").textContent = t[1];
   const c = document.getElementById("content");
   const v = state.view;
+  if(state.loadStatus==="loading"){ c.innerHTML = loadingState("Still loading workbook tabs…"); return; }
   if(v==="overview") c.innerHTML = renderOverview();
   else if(v==="beds") c.innerHTML = renderBeds();
   else if(v==="greenhouse") c.innerHTML = renderGreenhouse();
