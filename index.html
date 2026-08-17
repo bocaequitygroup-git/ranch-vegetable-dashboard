@@ -289,27 +289,48 @@ function parseCSV(text){
 }
 
 /* ---------- fetching ---------- */
-async function fetchSheet(key, bust){
-  const cfg = SHEETS[key];
-  const url = cfg.csvUrl + (bust ? `&_ts=${Date.now()}` : "");
+async function fetchOnce(url, timeoutMs){
   const controller = new AbortController();
-  const timeout = setTimeout(()=>controller.abort(), 15000);
+  const timeout = setTimeout(()=>controller.abort(), timeoutMs);
   try{
     const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
     clearTimeout(timeout);
-    if(!res.ok) throw new Error(`HTTP ${res.status} for "${cfg.name}". Check the tab is still Published to the web (File → Share → Publish to web).`);
-    const txt = await res.text();
-    if(!txt || !txt.trim()) throw new Error(`"${cfg.name}" returned an empty response — the publish link may be stale. Try re-publishing that tab.`);
-    const grid = parseCSV(txt);
-    const parsed = parseGrid(grid, cfg.headerRow);
-    console.log(`[CASN] ${cfg.name}: ${parsed.rows.length} rows, headers:`, parsed.headers);
-    return parsed;
+    return res;
   }catch(e){
     clearTimeout(timeout);
-    if(e.name==="AbortError") throw new Error(`Timed out reaching "${cfg.name}" after 15s. This usually means the request is being blocked (CORS, an ad blocker, or a corporate firewall) rather than Google being slow.`);
-    console.error(`[CASN] ${cfg.name} failed:`, e);
+    if(e.name==="AbortError") throw new Error("__TIMEOUT__");
     throw e;
   }
+}
+
+async function fetchSheet(key, bust){
+  const cfg = SHEETS[key];
+  const url = cfg.csvUrl + (bust ? `&_ts=${Date.now()}` : "");
+  // formula-heavy tabs (cross-sheet lookups/aggregations) can take longer for
+  // Google to recalculate before serving the published CSV snapshot
+  const HEAVY = new Set(["storage","demand","packed","founder"]);
+  const timeoutMs = HEAVY.has(key) ? 30000 : 15000;
+  const attempts = HEAVY.has(key) ? 2 : 1;
+  let lastErr;
+  for(let attempt=1; attempt<=attempts; attempt++){
+    try{
+      const res = await fetchOnce(url, timeoutMs);
+      if(!res.ok) throw new Error(`HTTP ${res.status} for "${cfg.name}". Check the tab is still Published to the web (File → Share → Publish to web).`);
+      const txt = await res.text();
+      if(!txt || !txt.trim()) throw new Error(`"${cfg.name}" returned an empty response — the publish link may be stale. Try re-publishing that tab.`);
+      const grid = parseCSV(txt);
+      const parsed = parseGrid(grid, cfg.headerRow);
+      console.log(`[CASN] ${cfg.name}: ${parsed.rows.length} rows, headers:`, parsed.headers);
+      return parsed;
+    }catch(e){
+      lastErr = e.message==="__TIMEOUT__"
+        ? new Error(`Timed out reaching "${cfg.name}" after ${timeoutMs/1000}s${attempt<attempts?" — retrying…":". This tab has heavy formulas (cross-sheet lookups) and Google may be slow to recalculate it; try refreshing in a moment."}`)
+        : e;
+      if(attempt<attempts) console.warn(`[CASN] ${cfg.name} attempt ${attempt} failed, retrying:`, lastErr.message);
+    }
+  }
+  console.error(`[CASN] ${cfg.name} failed:`, lastErr);
+  throw lastErr;
 }
 
 function parseGrid(grid, headerRowIdx){
