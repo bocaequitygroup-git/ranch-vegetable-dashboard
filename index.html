@@ -217,15 +217,15 @@
 /* Published CSV endpoints — File → Share → Publish to web (per tab, CSV).
    These are public, read-only exports; no auth or sheet ID needed. */
 const SHEETS = {
-  beds:        { name:"Bed Master (200)",        headerRow:1, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=800814606&single=true&output=csv" },
-  greenhouse:  { name:"Greenhouse Bays (10)",   headerRow:1, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=2092694534&single=true&output=csv" },
-  storage:     { name:"Storage Reserve (Ch C)", headerRow:1, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=8979155&single=true&output=csv" },
-  harvest:     { name:"Harvest Log",            headerRow:1, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=2049276612&single=true&output=csv" },
-  demand:      { name:"Weekly Demand & SCR",    headerRow:2, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1441279472&single=true&output=csv" },
+  beds:        { name:"Bed Master (200)",        headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=800814606&single=true&output=csv" },
+  greenhouse:  { name:"Greenhouse Bays (10)",   headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=2092694534&single=true&output=csv" },
+  storage:     { name:"Storage Reserve (Ch C)", headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=8979155&single=true&output=csv" },
+  harvest:     { name:"Harvest Log",            headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=2049276612&single=true&output=csv" },
+  demand:      { name:"Weekly Demand & SCR",    headerRow:5, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1441279472&single=true&output=csv" },
   restaurants: { name:"Restaurant Delivery Map",headerRow:0, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1947017870&single=true&output=csv" },
-  packed:      { name:"Packed & Staged (RTD)",  headerRow:1, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=448268097&single=true&output=csv" },
-  tasks:       { name:"Daily Task Log",         headerRow:1, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=863781157&single=true&output=csv" },
-  escalations: { name:"Escalation Log",         headerRow:1, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1945385964&single=true&output=csv" },
+  packed:      { name:"Packed & Staged (RTD)",  headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=448268097&single=true&output=csv" },
+  tasks:       { name:"Daily Task Log",         headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=863781157&single=true&output=csv" },
+  escalations: { name:"Escalation Log",         headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1945385964&single=true&output=csv" },
   founder:     { name:"Founder Dashboard",       headerRow:1, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1522445854&single=true&output=csv" },
 };
 
@@ -247,7 +247,7 @@ const NAV = [
 ];
 
 const STATE_COLORS = {
-  "Available":"#a9b4ac","Planted":"#b08920","Growing":"#3b6e8f","Harvestable":"#2d5a3d","Harvested":"#6b7a6f"
+  "Available":"#a9b4ac","Planted":"#b08920","Growing":"#3b6e8f","Harvestable":"#2d5a3d","Harvested":"#6b7a6f","Cover Crop / Rest":"#7a8f6b"
 };
 
 let state = { data:{}, lastUpdated:null, view:"overview", refreshMin:0, refreshTimer:null };
