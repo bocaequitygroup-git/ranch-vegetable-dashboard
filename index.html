@@ -227,12 +227,14 @@ const SHEETS = {
   tasks:       { name:"Daily Task Log",         headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=863781157&single=true&output=csv" },
   escalations: { name:"Escalation Log",         headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1945385964&single=true&output=csv" },
   founder:     { name:"Founder Dashboard",       headerRow:1, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1522445854&single=true&output=csv" },
+  cohorts:     { name:"Cohort Planner",          headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1867374884&single=true&output=csv" },
 };
 
 const NAV = [
   { id:"overview", label:"Overview", icon:'<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>' },
   { sec:"FIELD OPERATIONS" },
   { id:"beds", label:"Field Beds", icon:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>' },
+  { id:"cohorts", label:"Cohort Planner", icon:'<circle cx="12" cy="12" r="3"/><circle cx="5" cy="7" r="2"/><circle cx="19" cy="7" r="2"/><circle cx="5" cy="17" r="2"/><circle cx="19" cy="17" r="2"/><path d="M9.5 10.5 6.5 8M14.5 10.5l3-2.5M9.5 13.5 6.5 16M14.5 13.5l3 2.5"/>' },
   { id:"greenhouse", label:"Greenhouse", icon:'<path d="M2 20h20M4 20V8l8-5 8 5v12M9 20v-6h6v6"/>' },
   { id:"harvest", label:"Harvest Log", icon:'<path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/>' },
   { sec:"SUPPLY & DEMAND" },
@@ -445,6 +447,7 @@ function render(){
   const titles = {
     overview:["Overview","Live oversight snapshot — every figure pulled from the workbook tabs"],
     beds:["Field Beds","200 beds across 10 pads (Channel A)"],
+    cohorts:["Cohort Planner","Planting-wave tracking — defined before beds are planted"],
     greenhouse:["Greenhouse","10 environmental-control bays (Channel B)"],
     harvest:["Harvest Log","Cold-chain tracking from field to wash"],
     demand:["Demand & SCR","Weekly demand matrix and supply coverage ratio"],
@@ -462,6 +465,7 @@ function render(){
   if(state.loadStatus==="loading"){ c.innerHTML = loadingState("Still loading workbook tabs…"); return; }
   if(v==="overview") c.innerHTML = renderOverview();
   else if(v==="beds") c.innerHTML = renderBeds();
+  else if(v==="cohorts") c.innerHTML = renderCohorts();
   else if(v==="greenhouse") c.innerHTML = renderGreenhouse();
   else if(v==="harvest") c.innerHTML = renderHarvest();
   else if(v==="demand") c.innerHTML = renderDemand();
@@ -486,6 +490,8 @@ function renderOverview(){
   const harvestable = byState["Harvestable"]||0;
   const growing = byState["Growing"]||0;
 
+  const activeCohorts = new Set(beds.map(b=>b["Cohort ID"]).filter(Boolean)).size;
+
   const ghActive = gh.filter(g=>(g["Status"]||"").toLowerCase()==="active").length;
   const ghIdle = gh.filter(g=>(g["Status"]||"").toLowerCase()==="idle").length;
 
@@ -509,6 +515,7 @@ function renderOverview(){
     metricCard("Cold-chain flags", fmt(ccViol), "harvests > 30 min", ccViol>0?"bad":"good"),
     metricCard("SCR below 1.00", fmt(scrBelow), "categories need Channel D", scrBelow>0?"bad":"good"),
     metricCard("Open escalations", fmt(escUnresolved), "unresolved items", escUnresolved>0?"warn":"good"),
+    metricCard("Active cohorts", fmt(activeCohorts), "planting waves assigned to beds", ""),
   ].join("");
 
   // bed state breakdown
@@ -555,6 +562,44 @@ function metricCard(label,value,unit,deltaClass){
   return `<div class="card metric"><div class="label">${label}</div><div class="value">${value}</div><div class="delta ${deltaClass||''}">${unit}</div></div>`;
 }
 
+/* ====== COHORT PLANNER ======
+   Reference tab — one row per planting wave, defined BEFORE beds are
+   planted. Bed Master assigns each bed to a Cohort ID via dropdown
+   (sourced from this tab's own Cohort ID column); Harvest Log and
+   Packed & Staged pull Cohort ID automatically by Bed ID. This view
+   also cross-references live bed counts from Bed Master, since the
+   sheet's own "Beds Included" column is reference-only / manually typed
+   and can drift from what's actually assigned. */
+function renderCohorts(){
+  const cohorts = (state.data.cohorts&&state.data.cohorts.rows)||[];
+  const beds = (state.data.beds&&state.data.beds.rows)||[];
+  if(!cohorts.length) return emptyState("Cohort Planner");
+
+  const bedsByCohort = {};
+  beds.forEach(b=>{ const c=b["Cohort ID"]; if(c) (bedsByCohort[c]=bedsByCohort[c]||[]).push(b["Bed ID"]); });
+
+  const rows = cohorts.map(r=>{
+    const cid = r["Cohort ID"]||"";
+    const liveBeds = cid ? (bedsByCohort[cid]||[]) : [];
+    return `<tr>
+      <td><b>${escapeHtml(cid||"—")}</b></td>
+      <td>${escapeHtml(r["Crop / Variety"]||"—")}</td>
+      <td>${liveBeds.length?`<span class="badge b-green"><span class="d"></span>${liveBeds.length} assigned</span>`:`<span class="badge b-gray"><span class="d"></span>0 assigned</span>`}</td>
+      <td style="white-space:normal;max-width:220px;color:var(--muted)">${escapeHtml(r["Beds Included (reference only)"]||"—")}</td>
+      <td>${shortDate(r["Planting Date (target)"])}</td>
+      <td>${escapeHtml(r["Harvest Window (start–end)"]||"—")}</td>
+      <td style="max-width:200px;white-space:normal;color:var(--muted)">${escapeHtml(r["Notes"]||"")}</td>
+    </tr>`;
+  }).join("");
+
+  return `<div class="grid metric-row" style="margin-bottom:22px">
+      ${metricCard("Planned cohorts", fmt(cohorts.length), "planting waves defined", "")}
+      ${metricCard("Beds assigned", fmt(Object.values(bedsByCohort).reduce((s,a)=>s+a.length,0)), "of "+beds.length+" total beds", "")}
+    </div>
+    <div class="panel"><div class="phead"><h3>Planting-wave tracking</h3><span class="note">Defined before beds are planted · "assigned" is live from Bed Master</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Cohort ID</th><th>Crop / variety</th><th>Beds (live)</th><th>Beds included (ref.)</th><th>Planting date</th><th>Harvest window</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
 /* ====== BEDS ====== */
 function renderBeds(){
   const beds = (state.data.beds&&state.data.beds.rows)||[];
@@ -570,7 +615,7 @@ function renderBeds(){
       const id=b["Bed ID"]||"";
       return `<div class="bed" style="background:${color}" title="">
         ${id.replace(/^P0?\d+-B0?/,"B")}
-        <div class="tip"><b>${escapeHtml(id)}</b> · ${escapeHtml(b["Crop / Variety"]||"—")} · ${escapeHtml(s)}${b["Days in State"]?(" · "+b["Days in State"]+"d"):""}</div>
+        <div class="tip"><b>${escapeHtml(id)}</b> · ${escapeHtml(b["Crop / Variety"]||"—")} · ${escapeHtml(s)}${b["Days in State"]?(" · "+b["Days in State"]+"d"):""}${b["Cohort ID"]?(" · "+escapeHtml(b["Cohort ID"])):""}</div>
       </div>`;
     }).join("");
     return `<div class="card" style="margin-bottom:18px">
@@ -620,11 +665,12 @@ function renderHarvest(){
       <td>${escapeHtml(r["Minutes to Wash"]||"—")}</td>
       <td><span class="badge ${cls}"><span class="d"></span>${escapeHtml(st)}</span></td>
       <td>${escapeHtml(r["Wash Method"]||"—")}</td><td>${escapeHtml(r["Route"]||"—")}</td>
+      <td>${escapeHtml(r["Cohort ID"]||"—")}</td>
       <td style="max-width:200px;white-space:normal;color:var(--muted)">${escapeHtml(r["Notes"]||"")}</td>
     </tr>`;
   }).join("");
   return `<div class="panel"><div class="phead"><h3>Cold-chain tracking</h3><span class="note">One row per harvest event · 30-min wash threshold</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Bed</th><th>Crop</th><th>Category</th><th>Weight</th><th>Harvest</th><th>Wash arrival</th><th>Min to wash</th><th>Cold chain</th><th>Wash method</th><th>Route</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Bed</th><th>Crop</th><th>Category</th><th>Weight</th><th>Harvest</th><th>Wash arrival</th><th>Min to wash</th><th>Cold chain</th><th>Wash method</th><th>Route</th><th>Cohort</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
 /* ====== DEMAND & SCR ====== */
@@ -717,10 +763,11 @@ function renderPacked(){
     <td>${escapeHtml(r["Staging Location"]||r["Staging Spot"]||"—")}</td>
     <td>${escapeHtml(r["Route"]||"—")}</td>
     <td>${(r["QR Scan Confirmed?"]||"").toLowerCase().startsWith("y")?`<span class="badge b-green"><span class="d"></span>Confirmed</span>`:"—"}</td>
+    <td>${escapeHtml(r["Cohort ID"]||"—")}</td>
     <td style="max-width:200px;white-space:normal;color:var(--muted)">${escapeHtml(r["Notes"]||"")}</td>
   </tr>`).join("");
   return `<div class="panel"><div class="phead"><h3>Ready-to-deliver ledger</h3><span class="note">One row per pack event · append-only</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Bed</th><th>Crop</th><th>Outlet</th><th>Crates</th><th>Weight</th><th>Staging</th><th>Route</th><th>QR</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Bed</th><th>Crop</th><th>Outlet</th><th>Crates</th><th>Weight</th><th>Staging</th><th>Route</th><th>QR</th><th>Cohort</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 
 /* ====== TASKS ====== */
