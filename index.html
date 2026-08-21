@@ -1,819 +1,346 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Ngapori Ranch — Vegetable CASN Dashboard</title>
-<meta name="description" content="Live oversight dashboard for the Ngapori Ranch 20-acre Vegetable CASN workbook. Connects directly to a Google Sheets workbook." />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<style>
-  :root{
-    --bg:#f6f4ee; --surface:#ffffff; --ink:#1c2b1f; --muted:#6b7a6f; --line:#e6e1d5;
-    --green:#2d5a3d; --green-deep:#1c3a27; --green-soft:#e7efe8;
-    --terra:#c2603f; --gold:#b08920; --blue:#3b6e8f; --red:#b23b3b; --amber:#c98a1f;
-    --radius:14px; --shadow:0 1px 2px rgba(28,43,31,.04),0 10px 28px -14px rgba(28,43,31,.16);
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%}
-  body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.5}
-  h1,h2,h3,h4{font-family:'Fraunces',Georgia,serif;font-weight:500;letter-spacing:-.01em}
-  a{color:inherit}
-  button{font-family:inherit;cursor:pointer;border:none;background:none}
-  .app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
-  /* Sidebar */
-  .sidebar{background:var(--green-deep);color:#e9efe6;display:flex;flex-direction:column;padding:22px 16px;position:sticky;top:0;height:100vh}
-  .brand{display:flex;align-items:center;gap:12px;padding:6px 8px 22px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:14px}
-  .brand .mark{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#7fa86a,#3d6b4a);display:grid;place-items:center;font-family:'Fraunces',serif;font-weight:600;color:#fff;font-size:18px;flex-shrink:0}
-  .brand .name{font-family:'Fraunces',serif;font-size:16px;font-weight:500;line-height:1.15}
-  .brand .sub{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#9fb6a3;margin-top:2px}
-  .nav{display:flex;flex-direction:column;gap:2px;overflow-y:auto;flex:1}
-  .nav-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;font-size:13.5px;color:#c4d4c6;cursor:pointer;transition:.15s;text-align:left;width:100%}
-  .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
-  .nav-item.active{background:rgba(255,255,255,.12);color:#fff;font-weight:500}
-  .nav-item .ic{width:18px;height:18px;flex-shrink:0;opacity:.85}
-  .nav-section{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#7d9583;padding:14px 12px 6px}
-  .sidebar-foot{padding:12px 8px 0;border-top:1px solid rgba(255,255,255,.1);font-size:11px;color:#8aa18d}
-  /* Main */
-  .main{display:flex;flex-direction:column;min-width:0}
-  .topbar{display:flex;align-items:center;gap:16px;padding:18px 28px;background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
-  .topbar .title{font-size:20px;flex:1}
-  .topbar .title small{display:block;font-family:'Inter',sans-serif;font-size:11.5px;color:var(--muted);font-weight:400;letter-spacing:.02em;margin-top:1px}
-  .conn-pill{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--muted)}
-  .conn-pill .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
-  .conn-pill.live .dot{background:#3fae5a;box-shadow:0 0 0 3px rgba(63,174,90,.18)}
-  .conn-pill.live{color:var(--green-deep);border-color:#bcd9c0}
-  .conn-pill.err .dot{background:var(--red)}
-  .conn-pill.err{color:var(--red);border-color:#e6c3c3}
-  .btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:9px;font-size:13px;font-weight:500;border:1px solid var(--line);background:var(--surface);color:var(--ink);transition:.15s}
-  .btn:hover{background:var(--bg)}
-  .btn.primary{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
-  .btn.primary:hover{background:var(--green)}
-  .btn .ic{width:15px;height:15px}
-  .content{padding:28px;overflow:auto}
-  /* Cards */
-  .grid{display:grid;gap:18px}
-  .metric-row{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
-  .metric{padding:18px 20px}
-  .metric .label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
-  .metric .value{font-family:'Fraunces',serif;font-size:34px;font-weight:500;line-height:1.1;margin-top:6px;letter-spacing:-.02em}
-  .metric .value .unit{font-size:15px;color:var(--muted);font-family:'Inter',sans-serif;font-weight:400;margin-left:3px}
-  .metric .delta{font-size:12px;color:var(--muted);margin-top:6px}
-  .metric .delta.warn{color:var(--amber)} .metric .delta.bad{color:var(--red)} .metric .delta.good{color:var(--green)}
-  .section-head{display:flex;align-items:center;justify-content:space-between;margin:6px 0 14px}
-  .section-head h2{font-size:22px}
-  .section-head .note{font-size:12.5px;color:var(--muted)}
-  .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
-  .panel .phead{padding:15px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
-  .panel .phead h3{font-size:16px}
-  .panel .pbody{padding:18px 20px}
-  /* Tables */
-  .table-wrap{overflow:auto}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th{text-align:left;font-weight:600;color:var(--muted);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--bg)}
-  td{padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
-  tr:last-child td{border-bottom:none}
-  tbody tr:hover{background:#faf9f4}
-  /* Badges */
-  .badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:500;line-height:1.6}
-  .badge .d{width:6px;height:6px;border-radius:50%}
-  .b-green{background:var(--green-soft);color:var(--green-deep)} .b-green .d{background:var(--green)}
-  .b-amber{background:#fbf2dd;color:#8a6310} .b-amber .d{background:var(--amber)}
-  .b-red{background:#f7e4e4;color:#9a2f2f} .b-red .d{background:var(--red)}
-  .b-blue{background:#e4eef4;color:#2c5570} .b-blue .d{background:var(--blue)}
-  .b-gray{background:#ececea;color:#6b7a6f} .b-gray .d{background:#a9b4ac}
-  .b-gold{background:#f5efdc;color:#7a6310} .b-gold .d{background:var(--gold)}
-  .b-terra{background:#f6e6df;color:#8a3f25} .b-terra .d{background:var(--terra)}
-  /* Bed grid */
-  .bed-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:7px}
-  .bed{aspect-ratio:1;border-radius:7px;display:grid;place-items:center;font-size:10px;font-weight:600;color:#fff;cursor:default;position:relative;transition:.15s}
-  .bed:hover{transform:scale(1.08);z-index:2;box-shadow:0 4px 12px rgba(0,0,0,.18)}
-  .bed .tip{position:absolute;bottom:120%;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 9px;border-radius:6px;font-size:10.5px;white-space:nowrap;opacity:0;pointer-events:none;transition:.15s;z-index:5;font-weight:400}
-  .bed:hover .tip{opacity:1}
-  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted)}
-  .legend span{display:flex;align-items:center;gap:6px}
-  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
-  /* SCR */
-  .scr-row{display:grid;grid-template-columns:1.6fr repeat(4,1fr) 1fr;gap:1px;background:var(--line);border-radius:10px;overflow:hidden;font-size:13px}
-  .scr-row>div{background:var(--surface);padding:11px 14px}
-  .scr-row.head>div{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
-  .scr-val{font-weight:600}
-  .scr-bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:5px}
-  .scr-bar i{display:block;height:100%;background:var(--green)}
-  /* Empty / loading */
-  .state{padding:60px 20px;text-align:center;color:var(--muted)}
-  .state .big{font-family:'Fraunces',serif;font-size:22px;color:var(--ink);margin-bottom:8px}
-  .spinner{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .two-col{grid-template-columns:1fr 1fr}
-  @media(max-width:900px){.two-col{grid-template-columns:1fr}}
-  .kv{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-radius:10px;overflow:hidden}
-  .kv>div{background:var(--surface);padding:10px 14px}
-  .kv .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
-  .kv .v{font-weight:500}
-  /* Modal */
-  .modal-bg{position:fixed;inset:0;background:rgba(20,30,22,.5);backdrop-filter:blur(4px);display:none;place-items:center;z-index:100;padding:20px}
-  .modal-bg.open{display:grid}
-  .modal{background:var(--surface);border-radius:18px;max-width:520px;width:100%;box-shadow:0 30px 80px -20px rgba(0,0,0,.4);overflow:hidden}
-  .modal .mhead{padding:24px 26px 6px}
-  .modal .mhead h2{font-size:23px}
-  .modal .mhead p{font-size:13.5px;color:var(--muted);margin-top:6px}
-  .modal .mbody{padding:18px 26px 8px}
-  .modal .mfoot{padding:14px 26px 26px;display:flex;gap:10px;justify-content:flex-end}
-  .field{margin-bottom:15px}
-  .field label{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px}
-  .field input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--ink)}
-  .field input:focus{outline:none;border-color:var(--green);background:#fff}
-  .field .hint{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.45}
-  .field .hint a{color:var(--green);text-decoration:underline}
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:200;opacity:0;transition:.25s;pointer-events:none}
-  .toast.show{opacity:1;bottom:34px}
-  .toast.err{background:var(--red)}
-  .chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
-  .chip{padding:6px 12px;border-radius:999px;border:1px solid var(--line);font-size:12px;cursor:pointer;background:var(--surface);transition:.15s}
-  .chip:hover{border-color:var(--green)}
-  .chip.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
-  .muted{color:var(--muted)}
-  .right{display:flex;gap:8px;align-items:center}
-  @media(max-width:760px){
-    .app{grid-template-columns:1fr}
-    .sidebar{position:fixed;left:-260px;width:248px;z-index:50;transition:.25s}
-    .sidebar.open{left:0}
-    .content{padding:18px}
-    .topbar{padding:14px 16px}
-    .menu-btn{display:inline-flex!important}
-  }
-  .menu-btn{display:none;align-items:center;justify-content:center;width:38px;height:38px;border-radius:9px;border:1px solid var(--line)}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ngapori Ranch - Manager Live Board</title>
+  <style>
+    /* Reuses the Worker App's design tokens for visual consistency, laid
+       out as a dashboard/table instead of a single-column field tool --
+       this is meant for a manager glancing at the whole ranch at once,
+       not a gloved hand on a phone mid-row. */
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+    :root {
+      --ink: #1C2321;
+      --paper: #FAF8F2;
+      --paper-dim: #F1EEE3;
+      --rust: #B5482B;
+      --rust-dark: #8F3620;
+      --field-green: #3A5F3D;
+      --field-green-dark: #2A4630;
+      --soil: #6B5544;
+      --amber: #C68B12;
+      --alert-red: #A6291F;
+      --line: #D8D2C4;
+      --line-strong: #B7AF9B;
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; background: var(--paper); color: var(--ink);
+      font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    }
+    #app { max-width: 1100px; margin: 0 auto; min-height: 100vh; padding-bottom: 60px; }
+
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 3px solid var(--ink);
+      background: var(--ink); color: var(--paper);
+    }
+    .topbar .brand { font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 0.06em; }
+    .topbar .brand .sub { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.04em; opacity: 0.75; display: block; margin-top: 2px; }
+    .topbar .who { display: flex; align-items: center; gap: 14px; font-size: 13px; }
+    .topbar a.logout { color: var(--paper); opacity: 0.8; text-decoration: underline; cursor: pointer; }
+
+    .screen { display: none; padding: 24px 20px; }
+    .screen.active { display: block; }
+
+    h1.page-title { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 0.03em; margin: 4px 0 20px; }
+
+    /* ---- Login screen (narrow, centered, same shape as Worker App) ---- */
+    #screen-login { max-width: 380px; margin: 60px auto 0; }
+    label { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--soil); margin: 16px 0 6px; }
+    input[type=text], input[type=password] {
+      width: 100%; padding: 14px 12px; font-size: 17px; font-family: inherit;
+      border: 2px solid var(--line-strong); border-radius: var(--radius);
+      background: #fff; color: var(--ink); min-height: 52px;
+    }
+    input:focus { outline: 3px solid var(--field-green); outline-offset: 1px; border-color: var(--field-green); }
+    button { font-family: inherit; cursor: pointer; border: none; }
+    .btn {
+      width: 100%; min-height: 52px; border-radius: var(--radius);
+      font-size: 16px; font-weight: 700; letter-spacing: 0.02em;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-top: 16px;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--rust); color: #fff; }
+    .btn-ghost { background: transparent; color: var(--ink); border: 2px solid var(--line-strong); }
+
+    .error-banner {
+      background: #FBEAE8; border: 2px solid var(--alert-red); color: var(--rust-dark);
+      padding: 12px 14px; border-radius: var(--radius); font-size: 14px; font-weight: 600; margin-bottom: 14px;
+      display: none;
+    }
+    .error-banner.show { display: block; }
+
+    /* ---- Board screen ---- */
+    .board-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+    .board-meta { font-size: 13px; color: var(--soil); font-family: 'IBM Plex Mono', monospace; }
+    .btn-refresh {
+      background: var(--field-green); color: #fff; border-radius: var(--radius);
+      padding: 10px 18px; font-size: 14px; font-weight: 700; min-height: 44px; width: auto; margin-top: 0;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn-refresh:active:not(:disabled) { background: var(--field-green-dark); }
+    .btn-refresh.spinning .spin-icon { animation: spin 0.8s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .board-wrap { overflow-x: auto; border: 2px solid var(--line); border-radius: var(--radius); background: #fff; }
+    table.board { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 820px; }
+    table.board th {
+      text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--soil); font-weight: 700; padding: 10px 12px; border-bottom: 2px solid var(--line-strong);
+      background: var(--paper-dim); position: sticky; top: 0;
+    }
+    table.board td { padding: 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    table.board tr:last-child td { border-bottom: none; }
+    table.board tr.has-exception { background: #FBEAE8; }
+
+    .worker-name { font-weight: 700; }
+    .worker-id { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--soil); }
+    .tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 12px;
+      background: var(--ink); color: var(--paper);
+      padding: 4px 8px; border-radius: 4px; letter-spacing: 0.03em;
+    }
+    .state-pill {
+      display: inline-block; padding: 3px 9px; border-radius: 999px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .state-pill.ACTIVE { background: #E4EFE4; color: var(--field-green-dark); }
+    .state-pill.PAUSED { background: #FBEFD8; color: var(--amber); }
+
+    .exc-badge {
+      display: inline-block; margin-top: 6px; padding: 4px 9px; border-radius: 6px;
+      font-size: 11px; font-weight: 700; background: var(--alert-red); color: #fff;
+    }
+    .exc-badge.Low { background: var(--amber); color: var(--ink); }
+    .exc-badge.Medium { background: var(--amber); color: var(--ink); }
+    .exc-notes { font-size: 12px; color: var(--soil); margin-top: 4px; max-width: 220px; }
+
+    .elapsed { font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--soil); }
+    .empty-state .glyph { font-size: 36px; margin-bottom: 10px; }
+  </style>
 </head>
 <body>
-<div class="app">
-  <aside class="sidebar" id="sidebar">
-    <div class="brand">
-      <div class="mark">N</div>
-      <div>
-        <div class="name">Ngapori Ranch</div>
-        <div class="sub">Vegetable CASN</div>
+  <div id="app">
+    <div class="topbar">
+      <div class="brand">NGAPORI RANCH<span class="sub">Manager Live Board</span></div>
+      <div class="who" id="topbarWho" style="display:none;">
+        <span id="whoName"></span>
+        <a class="logout" id="btnLogout">Log out</a>
       </div>
     </div>
-    <nav class="nav" id="nav"></nav>
-    <div class="sidebar-foot" id="sideFoot">Loading…</div>
-  </aside>
 
-  <div class="main">
-    <header class="topbar">
-      <button class="menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </button>
-      <div class="title" id="pageTitle">Overview<small id="pageSub">Live oversight snapshot</small></div>
-      <div class="right">
-        <div class="conn-pill" id="connPill"><span class="dot"></span><span id="connText">Loading…</span></div>
-        <button class="btn" id="refreshBtn" onclick="loadAll(true)" title="Refresh">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-        </button>
-        <button class="btn" onclick="openModal()">Settings</button>
-      </div>
-    </header>
-    <div class="content" id="content"></div>
-  </div>
-</div>
+    <!-- Login -->
+    <section class="screen active" id="screen-login">
+      <h1 class="page-title">Manager Log In</h1>
+      <div class="error-banner" id="loginError"></div>
+      <label for="loginWorkerId">Worker ID</label>
+      <input type="text" id="loginWorkerId" autocomplete="username" placeholder="USR-MANAGER1">
+      <label for="loginPin">PIN</label>
+      <input type="password" id="loginPin" inputmode="numeric" autocomplete="current-password" placeholder="••••">
+      <button class="btn btn-primary" id="btnLogin">Log In</button>
+    </section>
 
-<!-- Connect modal -->
-<div class="modal-bg" id="modal">
-  <div class="modal">
-    <div class="mhead">
-      <h2>Dashboard settings</h2>
-      <p>This dashboard reads directly from the Vegetable CASN workbook's published tabs — no data is stored, and there's nothing to connect. Set auto-refresh below if you'd like it to poll for changes.</p>
-    </div>
-    <div class="mbody">
-      <div class="field">
-        <label>Auto-refresh</label>
-        <div class="chip-row" id="refreshChips">
-          <div class="chip active" data-min="0">Off</div>
-          <div class="chip" data-min="1">1 min</div>
-          <div class="chip" data-min="5">5 min</div>
-          <div class="chip" data-min="15">15 min</div>
+    <!-- Board -->
+    <section class="screen" id="screen-board">
+      <div class="board-header">
+        <div>
+          <h1 class="page-title" style="margin-bottom:4px;">Live Board</h1>
+          <div class="board-meta" id="boardMeta">Not loaded yet</div>
         </div>
-        <div class="hint">Each published tab updates a few minutes after edits are made in the source workbook, so near-instant edits may take a moment to appear.</div>
+        <button class="btn-refresh" id="btnRefresh">
+          <span class="spin-icon">&#8635;</span> Refresh
+        </button>
       </div>
-    </div>
-    <div class="mfoot">
-      <button class="btn" onclick="closeModal()">Close</button>
-      <button class="btn primary" onclick="doConnect()">Save</button>
-    </div>
+      <div class="error-banner" id="boardError"></div>
+      <div id="boardContent"></div>
+    </section>
   </div>
-</div>
 
-<div class="toast" id="toast"></div>
+  <script>
+  (function () {
+    'use strict';
 
-<script>
-/* ============================================================
-   NGAPORI RANCH — Vegetable CASN live dashboard
-   Self-contained. Connects to a published Google Sheets workbook.
-   ============================================================ */
+    // ---------------------------------------------------------------
+    // EDIT THIS whenever you redeploy the Apps Script backend (Deploy ->
+    // Manage deployments -> the "Web app" URL ending in /exec). Same
+    // endpoint the Worker App's index.html calls -- this file is a
+    // separate, independently-hostable static page that talks to the
+    // exact same backend as a read-only manager view.
+    // ---------------------------------------------------------------
+    var SCRIPT_URL = "https://script.google.com/macros/s/AKfycby9x30ocRrG9AwOYATrspBX1zyJgWKrSjii5qp7rag6tvBrKUGUfOdeKCuPU_UzS_sQyg/exec";
 
-/* Published CSV endpoints — File → Share → Publish to web (per tab, CSV).
-   These are public, read-only exports; no auth or sheet ID needed. */
-const SHEETS = {
-  beds:        { name:"Bed Master (200)",        headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=800814606&single=true&output=csv" },
-  greenhouse:  { name:"Greenhouse Bays (10)",   headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=2092694534&single=true&output=csv" },
-  storage:     { name:"Storage Reserve (Ch C)", headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=8979155&single=true&output=csv" },
-  harvest:     { name:"Harvest Log",            headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=2049276612&single=true&output=csv" },
-  demand:      { name:"Weekly Demand & SCR",    headerRow:5, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1441279472&single=true&output=csv" },
-  restaurants: { name:"Restaurant Delivery Map",headerRow:0, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1947017870&single=true&output=csv" },
-  packed:      { name:"Packed & Staged (RTD)",  headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=448268097&single=true&output=csv" },
-  tasks:       { name:"Daily Task Log",         headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=863781157&single=true&output=csv" },
-  escalations: { name:"Escalation Log",         headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1945385964&single=true&output=csv" },
-  founder:     { name:"Founder Dashboard",       headerRow:1, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1522445854&single=true&output=csv" },
-  cohorts:     { name:"Cohort Planner",          headerRow:3, csvUrl:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQipaFNMCQDDtV6xtZJqwyVC2likxz23tWSrUF7oYpv0g8K1lg3k8wp3BV-IBccUzrnBsp9KKgJWQPF/pub?gid=1867374884&single=true&output=csv" },
-};
+    var SESSION_KEY = 'vpos_manager_app_session_v1';
+    var state = { workerId: null, fullName: null, role: null };
 
-const NAV = [
-  { id:"overview", label:"Overview", icon:'<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>' },
-  { sec:"FIELD OPERATIONS" },
-  { id:"beds", label:"Field Beds", icon:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>' },
-  { id:"cohorts", label:"Cohort Planner", icon:'<circle cx="12" cy="12" r="3"/><circle cx="5" cy="7" r="2"/><circle cx="19" cy="7" r="2"/><circle cx="5" cy="17" r="2"/><circle cx="19" cy="17" r="2"/><path d="M9.5 10.5 6.5 8M14.5 10.5l3-2.5M9.5 13.5 6.5 16M14.5 13.5l3 2.5"/>' },
-  { id:"greenhouse", label:"Greenhouse", icon:'<path d="M2 20h20M4 20V8l8-5 8 5v12M9 20v-6h6v6"/>' },
-  { id:"harvest", label:"Harvest Log", icon:'<path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/>' },
-  { sec:"SUPPLY & DEMAND" },
-  { id:"demand", label:"Demand & SCR", icon:'<path d="M3 3v18h18M7 14l3-3 3 3 5-6"/>' },
-  { id:"storage", label:"Storage Reserve", icon:'<rect x="3" y="3" width="18" height="5"/><rect x="3" y="10" width="18" height="5"/><rect x="3" y="17" width="18" height="4"/>' },
-  { sec:"DELIVERY" },
-  { id:"restaurants", label:"Restaurants", icon:'<path d="M5 21V9a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v12M5 21h14M9 9h6v5H9z"/>' },
-  { id:"packed", label:"Packed & Staged", icon:'<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7"/>' },
-  { sec:"EXECUTION" },
-  { id:"tasks", label:"Daily Tasks", icon:'<path d="M9 11l3 3 8-8M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>' },
-  { id:"escalations", label:"Escalations", icon:'<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>' },
-];
-
-const STATE_COLORS = {
-  "Available":"#a9b4ac","Planted":"#b08920","Growing":"#3b6e8f","Harvestable":"#2d5a3d","Harvested":"#6b7a6f","Cover Crop / Rest":"#7a8f6b"
-};
-
-let state = { data:{}, lastUpdated:null, view:"overview", refreshMin:0, refreshTimer:null, loadStatus:"loading" };
-
-/* ---------- persistence (auto-refresh preference only) ---------- */
-function loadCfg(){
-  try{
-    const c = JSON.parse(localStorage.getItem("ranchCasnCfg")||"{}");
-    state.refreshMin = c.refreshMin || 0;
-  }catch(e){}
-}
-function saveCfg(){
-  localStorage.setItem("ranchCasnCfg", JSON.stringify({refreshMin:state.refreshMin}));
-}
-
-/* ---------- CSV parsing (RFC4180: handles quoted fields, embedded commas/newlines) ---------- */
-function parseCSV(text){
-  const rows = [];
-  let row = [], field = "", inQuotes = false;
-  for(let i=0;i<text.length;i++){
-    const c = text[i];
-    if(inQuotes){
-      if(c==='"'){
-        if(text[i+1]==='"'){ field+='"'; i++; }
-        else inQuotes=false;
-      } else field+=c;
-    } else {
-      if(c==='"') inQuotes=true;
-      else if(c===','){ row.push(field); field=""; }
-      else if(c==='\r'){ /* skip, \n handles the break */ }
-      else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=""; }
-      else field+=c;
+    function callApi(action, payload) {
+      return fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight, same as Worker App
+        body: JSON.stringify({ action: action, payload: payload })
+      })
+        .then(function (res) { return res.json(); })
+        .catch(function (err) { return { success: false, error: 'Network error: ' + err.message }; });
     }
-  }
-  if(field.length>0 || row.length>0){ row.push(field); rows.push(row); }
-  // drop fully-blank trailing rows
-  while(rows.length && rows[rows.length-1].every(c=>!c||!String(c).trim())) rows.pop();
-  return rows;
-}
 
-/* ---------- fetching ---------- */
-async function fetchOnce(url, timeoutMs){
-  const controller = new AbortController();
-  const timeout = setTimeout(()=>controller.abort(), timeoutMs);
-  try{
-    const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
-    clearTimeout(timeout);
-    return res;
-  }catch(e){
-    clearTimeout(timeout);
-    if(e.name==="AbortError") throw new Error("__TIMEOUT__");
-    throw e;
-  }
-}
-
-async function fetchSheet(key, bust){
-  const cfg = SHEETS[key];
-  const url = cfg.csvUrl + (bust ? `&_ts=${Date.now()}` : "");
-  // formula-heavy tabs (cross-sheet lookups/aggregations) can take longer for
-  // Google to recalculate before serving the published CSV snapshot
-  const HEAVY = new Set(["storage","demand","packed","founder"]);
-  const timeoutMs = HEAVY.has(key) ? 30000 : 15000;
-  const attempts = HEAVY.has(key) ? 2 : 1;
-  let lastErr;
-  for(let attempt=1; attempt<=attempts; attempt++){
-    try{
-      const res = await fetchOnce(url, timeoutMs);
-      if(!res.ok) throw new Error(`HTTP ${res.status} for "${cfg.name}". Check the tab is still Published to the web (File → Share → Publish to web).`);
-      const txt = await res.text();
-      if(!txt || !txt.trim()) throw new Error(`"${cfg.name}" returned an empty response — the publish link may be stale. Try re-publishing that tab.`);
-      const grid = parseCSV(txt);
-      const parsed = parseGrid(grid, cfg.headerRow);
-      console.log(`[CASN] ${cfg.name}: ${parsed.rows.length} rows, headers:`, parsed.headers);
-      return parsed;
-    }catch(e){
-      lastErr = e.message==="__TIMEOUT__"
-        ? new Error(`Timed out reaching "${cfg.name}" after ${timeoutMs/1000}s${attempt<attempts?" — retrying…":". This tab has heavy formulas (cross-sheet lookups) and Google may be slow to recalculate it; try refreshing in a moment."}`)
-        : e;
-      if(attempt<attempts) console.warn(`[CASN] ${cfg.name} attempt ${attempt} failed, retrying:`, lastErr.message);
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(function (el) { el.classList.remove('active'); });
+      document.getElementById(id).classList.add('active');
     }
-  }
-  console.error(`[CASN] ${cfg.name} failed:`, lastErr);
-  throw lastErr;
-}
+    function showError(elId, msg) {
+      var el = document.getElementById(elId);
+      el.textContent = msg; el.classList.add('show');
+    }
+    function clearError(elId) {
+      var el = document.getElementById(elId);
+      el.textContent = ''; el.classList.remove('show');
+    }
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function humanize(s) { return String(s || '').replace(/([a-z])([A-Z])/g, '$1 $2'); }
+    function formatElapsed(mins) {
+      if (mins === null || mins === undefined) return '\u2014';
+      var h = Math.floor(mins / 60), m = mins % 60;
+      return h > 0 ? (h + 'h ' + m + 'm') : (m + 'm');
+    }
+    function formatTime(iso) {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return '\u2014';
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
 
-function parseGrid(grid, headerRowIdx){
-  const headers = (grid[headerRowIdx]||[]).map(h=>(h==null?"":String(h).trim()));
-  const rows = [];
-  for(let i=headerRowIdx+1;i<grid.length;i++){
-    const r = grid[i]||[];
-    if(!r.length || r.every(c=>!c||!String(c).trim())) continue;
-    const obj = {};
-    headers.forEach((h,idx)=>{ obj[h]=r[idx]!=null?String(r[idx]).trim():""; });
-    obj._raw = r;
-    rows.push(obj);
-  }
-  return { headers, rows };
-}
+    // ---------------------------------------------------------------
+    // Login
+    // ---------------------------------------------------------------
+    function doLogin(workerId, pin) {
+      return callApi('login', { workerId: workerId, pin: pin }).then(function (res) {
+        if (!res.success) return res;
+        if (res.role !== 'Manager' && res.role !== 'Founder') {
+          return { success: false, error: 'This board is limited to Manager or Founder accounts.' };
+        }
+        return res;
+      });
+    }
 
-/* ---------- load all ---------- */
-async function loadAll(isRefresh){
-  const content = document.getElementById("content");
-  if(!isRefresh) content.innerHTML = loadingState("Loading workbook tabs…");
-  setConn("loading","Loading…");
-  try{
-    const keys = Object.keys(SHEETS);
-    const results = await Promise.allSettled(keys.map(k=>fetchSheet(k, isRefresh)));
-    const data = {};
-    let firstErr = null, failedTabs = [];
-    keys.forEach((k,i)=>{
-      if(results[i].status==="fulfilled") data[k]=results[i].value;
-      else { data[k]={headers:[],rows:[]}; failedTabs.push(SHEETS[k].name); if(!firstErr) firstErr=results[i].reason; }
+    function onLoginSuccess(res) {
+      state.workerId = res.userId;
+      state.fullName = res.fullName;
+      state.role = res.role;
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ workerId: res.userId, fullName: res.fullName, role: res.role }));
+      document.getElementById('whoName').textContent = res.fullName + ' (' + res.role + ')';
+      document.getElementById('topbarWho').style.display = 'flex';
+      showScreen('screen-board');
+      loadBoard();
+    }
+
+    document.getElementById('btnLogin').addEventListener('click', function () {
+      clearError('loginError');
+      var workerId = document.getElementById('loginWorkerId').value.trim();
+      var pin = document.getElementById('loginPin').value;
+      if (!workerId || !pin) { showError('loginError', 'Enter your Worker ID and PIN.'); return; }
+
+      var btn = this; btn.disabled = true; btn.textContent = 'Logging in\u2026';
+      doLogin(workerId, pin).then(function (res) {
+        btn.disabled = false; btn.textContent = 'Log In';
+        if (!res.success) { showError('loginError', res.error || 'Login failed.'); return; }
+        onLoginSuccess(res);
+      });
     });
-    state.data = data;
-    state.lastUpdated = new Date();
-    state.loadStatus = failedTabs.length ? "partial" : "ok";
-    if(failedTabs.length){
-      setConn("err", failedTabs.length+" tab(s) failed");
-      toast(`Couldn't load: ${failedTabs.join(", ")}${firstErr?` — ${firstErr.message}`:""}`, true);
-      console.error("[CASN] load failures:", firstErr);
-    } else {
-      setConn("live","Live · updated "+state.lastUpdated.toLocaleTimeString());
+
+    document.getElementById('btnLogout').addEventListener('click', function () {
+      callApi('logout', { workerId: state.workerId });
+      localStorage.removeItem(SESSION_KEY);
+      state.workerId = null; state.fullName = null; state.role = null;
+      document.getElementById('loginWorkerId').value = '';
+      document.getElementById('loginPin').value = '';
+      document.getElementById('topbarWho').style.display = 'none';
+      showScreen('screen-login');
+    });
+
+    // ---------------------------------------------------------------
+    // Board (manual refresh only, per spec -- no auto-poll interval)
+    // ---------------------------------------------------------------
+    function loadBoard() {
+      clearError('boardError');
+      var btn = document.getElementById('btnRefresh');
+      btn.disabled = true; btn.classList.add('spinning');
+
+      callApi('get-live-board', { workerId: state.workerId }).then(function (res) {
+        btn.disabled = false; btn.classList.remove('spinning');
+        if (!res.success) {
+          showError('boardError', res.error || 'Could not load the live board.');
+          return;
+        }
+        renderBoard(res.board);
+        document.getElementById('boardMeta').textContent =
+          res.board.length + ' active session' + (res.board.length === 1 ? '' : 's') +
+          ' \u2014 last updated ' + new Date().toLocaleTimeString();
+      });
     }
-    document.getElementById("sideFoot").textContent = "Updated "+state.lastUpdated.toLocaleTimeString();
-    render();
-    if(isRefresh && !failedTabs.length) toast("Workbook refreshed");
-    scheduleRefresh();
-  }catch(e){
-    setConn("err","Connection failed");
-    content.innerHTML = `<div class="state"><div class="big">Couldn't reach the workbook</div><div>${escapeHtml(e.message)}</div><div style="margin-top:18px"><button class="btn primary" onclick="loadAll(false)">Retry</button></div></div>`;
-  }
-}
 
-function scheduleRefresh(){
-  if(state.refreshTimer) clearInterval(state.refreshTimer);
-  if(state.refreshMin>0) state.refreshTimer = setInterval(()=>loadAll(true), state.refreshMin*60000);
-}
+    function renderBoard(rows) {
+      var container = document.getElementById('boardContent');
+      if (!rows.length) {
+        container.innerHTML =
+          '<div class="empty-state"><div class="glyph">\u2600</div>No active or paused sessions right now.</div>';
+        return;
+      }
 
-/* ---------- connection UI ---------- */
-function setConn(kind,text){
-  const pill = document.getElementById("connPill");
-  pill.className = "conn-pill "+(kind==="live"?"live":kind==="err"?"err":"");
-  document.getElementById("connText").textContent = text;
-}
+      var html = '<div class="board-wrap"><table class="board"><thead><tr>' +
+        '<th>Worker</th><th>Bed</th><th>Cohort / Crop</th><th>Activity</th>' +
+        '<th>Status</th><th>Start</th><th>Elapsed</th><th>Exception</th>' +
+        '</tr></thead><tbody>';
 
-function openModal(){
-  document.getElementById("modal").classList.add("open");
-  document.querySelectorAll("#refreshChips .chip").forEach(c=>{
-    c.classList.toggle("active", +c.dataset.min===state.refreshMin);
-  });
-}
-function closeModal(){ document.getElementById("modal").classList.remove("open"); }
+      rows.forEach(function (r) {
+        html += '<tr class="' + (r.Exception_Flag ? 'has-exception' : '') + '">';
+        html += '<td><div class="worker-name">' + escapeHtml(r.Worker_Name) + '</div><div class="worker-id">' + escapeHtml(r.Worker_ID) + '</div></td>';
+        html += '<td><span class="tag">' + escapeHtml(r.Bed_ID) + '</span>' + (r.Block_ID ? '<div class="worker-id" style="margin-top:4px;">' + escapeHtml(r.Block_ID) + '</div>' : '') + '</td>';
+        html += '<td>' + (r.Cohort_ID ? '<span class="tag" style="margin-bottom:4px;">' + escapeHtml(r.Cohort_ID) + '</span><br>' : '') + escapeHtml(r.Crop_Name) + '</td>';
+        html += '<td>' + escapeHtml(humanize(r.Activity_Type)) + '</td>';
+        html += '<td><span class="state-pill ' + escapeHtml(r.Session_Status) + '">' + escapeHtml(r.Session_Status) + '</span></td>';
+        html += '<td>' + formatTime(r.Start_Time) + '</td>';
+        html += '<td class="elapsed">' + formatElapsed(r.Elapsed_Minutes) + '</td>';
+        html += '<td>' + (r.Exception_Flag
+          ? '<span class="exc-badge ' + escapeHtml(r.Exception_Severity) + '">' + escapeHtml(r.Exception_Type || 'Exception') +
+            (r.Exception_Severity ? ' \u00b7 ' + escapeHtml(r.Exception_Severity) : '') + '</span>' +
+            (r.Exception_Notes ? '<div class="exc-notes">' + escapeHtml(r.Exception_Notes) + '</div>' : '')
+          : '\u2014') + '</td>';
+        html += '</tr>';
+      });
 
-function doConnect(){
-  const min = +document.querySelector("#refreshChips .chip.active").dataset.min;
-  state.refreshMin = min;
-  saveCfg();
-  closeModal();
-  scheduleRefresh();
-  toast("Auto-refresh set to "+(min?min+" min":"off"));
-}
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
 
-/* ---------- helpers ---------- */
-function num(v){ if(v==null||v==="")return 0; const n=parseFloat(String(v).replace(/[^0-9.\-]/g,"")); return isNaN(n)?0:n; }
-function fmt(n,d=0){ if(n==null||isNaN(n))return "—"; return n.toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:d}); }
-function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
-function shortDate(s){ if(!s)return "—"; const d=new Date(s); if(isNaN(d))return s; return d.toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
-function toast(msg,err){ const t=document.getElementById("toast"); t.textContent=msg; t.className="toast show"+(err?" err":""); setTimeout(()=>t.className="toast"+(err?" err":""),2400); }
-function loadingState(msg){ return `<div class="state"><div class="spinner"></div><div>${msg}</div></div>`; }
-function emptyState(msg){ return `<div class="state"><div class="big">${msg}</div><div>No rows in this tab yet.</div></div>`; }
+    document.getElementById('btnRefresh').addEventListener('click', loadBoard);
 
-function badgeForState(name){
-  const n=(name||"").toLowerCase();
-  if(n.includes("harvest")) return ['b-green','Harvestable'];
-  if(n.includes("grow")) return ['b-blue','Growing'];
-  if(n.includes("plant")) return ['b-gold','Planted'];
-  if(n.includes("avail")) return ['b-gray','Available'];
-  if(n.includes("harvested")) return ['b-gray','Harvested'];
-  return ['b-gray',name||'—'];
-}
-
-/* ---------- nav ---------- */
-function renderNav(){
-  const nav = document.getElementById("nav");
-  nav.innerHTML = NAV.map(n=>{
-    if(n.sec) return `<div class="nav-section">${n.sec}</div>`;
-    return `<button class="nav-item ${n.id===state.view?'active':''}" onclick="go('${n.id}')">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${n.icon}</svg>${n.label}</button>`;
-  }).join("");
-}
-function go(view){ state.view=view; renderNav(); render(); document.getElementById("sidebar").classList.remove("open"); }
-
-/* ---------- main render ---------- */
-function render(){
-  const titles = {
-    overview:["Overview","Live oversight snapshot — every figure pulled from the workbook tabs"],
-    beds:["Field Beds","200 beds across 10 pads (Channel A)"],
-    cohorts:["Cohort Planner","Planting-wave tracking — defined before beds are planted"],
-    greenhouse:["Greenhouse","10 environmental-control bays (Channel B)"],
-    harvest:["Harvest Log","Cold-chain tracking from field to wash"],
-    demand:["Demand & SCR","Weekly demand matrix and supply coverage ratio"],
-    storage:["Storage Reserve","Channel C bulk ledger"],
-    restaurants:["Restaurant Delivery Map","Routes, staging bays and QR dispatch"],
-    packed:["Packed & Staged","Ready-to-deliver ledger (RTD)"],
-    tasks:["Daily Tasks","Level 3 seasonal protocol execution"],
-    escalations:["Escalations","End-of-day mandatory-check log"],
-  };
-  const t = titles[state.view]||["",""];
-  document.getElementById("pageTitle").firstChild.textContent = t[0];
-  document.getElementById("pageSub").textContent = t[1];
-  const c = document.getElementById("content");
-  const v = state.view;
-  if(state.loadStatus==="loading"){ c.innerHTML = loadingState("Still loading workbook tabs…"); return; }
-  if(v==="overview") c.innerHTML = renderOverview();
-  else if(v==="beds") c.innerHTML = renderBeds();
-  else if(v==="cohorts") c.innerHTML = renderCohorts();
-  else if(v==="greenhouse") c.innerHTML = renderGreenhouse();
-  else if(v==="harvest") c.innerHTML = renderHarvest();
-  else if(v==="demand") c.innerHTML = renderDemand();
-  else if(v==="storage") c.innerHTML = renderStorage();
-  else if(v==="restaurants") c.innerHTML = renderRestaurants();
-  else if(v==="packed") c.innerHTML = renderPacked();
-  else if(v==="tasks") c.innerHTML = renderTasks();
-  else if(v==="escalations") c.innerHTML = renderEscalations();
-}
-
-/* ====== OVERVIEW ====== */
-function renderOverview(){
-  const beds = (state.data.beds&&state.data.beds.rows)||[];
-  const gh = (state.data.greenhouse&&state.data.greenhouse.rows)||[];
-  const harvest = (state.data.harvest&&state.data.harvest.rows)||[];
-  const esc = (state.data.escalations&&state.data.escalations.rows)||[];
-  const storage = (state.data.storage&&state.data.storage.rows)||[];
-  const demand = (state.data.demand&&state.data.demand.rows)||[];
-
-  const byState = {};
-  beds.forEach(b=>{ const s=b["State Name"]||"—"; byState[s]=(byState[s]||0)+1; });
-  const harvestable = byState["Harvestable"]||0;
-  const growing = byState["Growing"]||0;
-
-  const activeCohorts = new Set(beds.map(b=>b["Cohort ID"]).filter(Boolean)).size;
-
-  const ghActive = gh.filter(g=>(g["Status"]||"").toLowerCase()==="active").length;
-  const ghIdle = gh.filter(g=>(g["Status"]||"").toLowerCase()==="idle").length;
-
-  const storageTotal = storage.reduce((s,r)=>s+num(r["Balance (lb)"]),0);
-  const escUnresolved = esc.filter(r=>(r["Resolved (Y/N)"]||"").toUpperCase().startsWith("N")).length;
-
-  // cold chain violations
-  let ccViol = 0;
-  harvest.forEach(r=>{ if((r["Cold Chain Status"]||"").toUpperCase()==="LATE"||/late|viol/i.test(r["Cold Chain Status"]||"")) ccViol++; });
-
-  // SCR
-  const scrRows = demand.filter(r=>r["Crop Category"]);
-  const scrBelow = scrRows.filter(r=>num(r["SCR"])>0 && num(r["SCR"])<1).length;
-
-  const cards = [
-    metricCard("Field beds in production", fmt(beds.length), "of 200 allocated", "good"),
-    metricCard("Harvestable now", fmt(harvestable), "beds ready to cut", harvestable>0?"good":""),
-    metricCard("Growing", fmt(growing), "beds in progress", ""),
-    metricCard("Greenhouse active", fmt(ghActive)+"/"+fmt(gh.length), gh.length-ghActive+" idle", ghIdle>0?"warn":"good"),
-    metricCard("Storage reserve", fmt(storageTotal,1), "lb on hand", storageTotal>0?"":"muted"),
-    metricCard("Cold-chain flags", fmt(ccViol), "harvests > 30 min", ccViol>0?"bad":"good"),
-    metricCard("SCR below 1.00", fmt(scrBelow), "categories need Channel D", scrBelow>0?"bad":"good"),
-    metricCard("Open escalations", fmt(escUnresolved), "unresolved items", escUnresolved>0?"warn":"good"),
-    metricCard("Active cohorts", fmt(activeCohorts), "planting waves assigned to beds", ""),
-  ].join("");
-
-  // bed state breakdown
-  const stateBars = Object.keys(STATE_COLORS).map(s=>{
-    const cnt = byState[s]||0; const pct = beds.length?Math.round(cnt/beds.length*100):0;
-    return `<div style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:3px;background:${STATE_COLORS[s]};display:inline-block"></i>${s}</span><b>${cnt}</b></div>
-      <div style="height:7px;border-radius:4px;background:var(--line);overflow:hidden"><div style="height:100%;width:${pct}%;background:${STATE_COLORS[s]}"></div></div></div>`;
-  }).join("");
-
-  // recent harvests
-  const recent = harvest.slice(-5).reverse();
-  const recentRows = recent.length? recent.map(r=>`<tr>
-    <td>${shortDate(r["Date"])}</td><td><b>${escapeHtml(r["Bed ID"]||"—")}</b></td><td>${escapeHtml(r["Crop / Variety"]||"—")}</td>
-    <td>${fmt(num(r["Weight (lb)"]),1)} lb</td><td>${escapeHtml(r["Cold Chain Status"]||"—")}</td></tr>`).join("")
-    : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No harvests logged yet</td></tr>`;
-
-  // escalations
-  const openEsc = esc.filter(r=>(r["Resolved (Y/N)"]||"").toUpperCase().startsWith("N")).slice(0,5);
-  const escRows = openEsc.length? openEsc.map(r=>`<tr>
-    <td>${shortDate(r["Date"])}</td><td><span class="badge b-terra"><span class="d"></span>${escapeHtml(r["Check Type"]||"—")}</span></td>
-    <td>${escapeHtml(r["Details"]||"—")}</td><td>${escapeHtml(r["Action Taken"]||"—")}</td></tr>`).join("")
-    : `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">No open escalations 🌱</td></tr>`;
-
-  return `
-    <div class="grid metric-row" style="margin-bottom:22px">${cards}</div>
-    <div class="grid two-col" style="margin-bottom:22px">
-      <div class="card">
-        <div class="section-head"><h2>Bed state distribution</h2><span class="note">${beds.length} beds live</span></div>
-        ${stateBars||`<div class="muted">No bed data</div>`}
-      </div>
-      <div class="card">
-        <div class="section-head"><h2>Open escalations</h2><span class="note">End-of-day checks</span></div>
-        <div class="table-wrap"><table>${escRows?`<tbody>${escRows}</tbody>`:""}</table></div>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="phead"><h3>Recent harvests</h3><span class="note">Cold-chain tracking</span></div>
-      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Bed</th><th>Crop</th><th>Weight</th><th>Cold chain</th></tr></thead><tbody>${recentRows}</tbody></table></div>
-    </div>`;
-}
-
-function metricCard(label,value,unit,deltaClass){
-  return `<div class="card metric"><div class="label">${label}</div><div class="value">${value}</div><div class="delta ${deltaClass||''}">${unit}</div></div>`;
-}
-
-/* ====== COHORT PLANNER ======
-   Reference tab — one row per planting wave, defined BEFORE beds are
-   planted. Bed Master assigns each bed to a Cohort ID via dropdown
-   (sourced from this tab's own Cohort ID column); Harvest Log and
-   Packed & Staged pull Cohort ID automatically by Bed ID. This view
-   also cross-references live bed counts from Bed Master, since the
-   sheet's own "Beds Included" column is reference-only / manually typed
-   and can drift from what's actually assigned. */
-function renderCohorts(){
-  const cohorts = (state.data.cohorts&&state.data.cohorts.rows)||[];
-  const beds = (state.data.beds&&state.data.beds.rows)||[];
-  if(!cohorts.length) return emptyState("Cohort Planner");
-
-  const bedsByCohort = {};
-  beds.forEach(b=>{ const c=b["Cohort ID"]; if(c) (bedsByCohort[c]=bedsByCohort[c]||[]).push(b["Bed ID"]); });
-
-  const rows = cohorts.map(r=>{
-    const cid = r["Cohort ID"]||"";
-    const liveBeds = cid ? (bedsByCohort[cid]||[]) : [];
-    return `<tr>
-      <td><b>${escapeHtml(cid||"—")}</b></td>
-      <td>${escapeHtml(r["Crop / Variety"]||"—")}</td>
-      <td>${liveBeds.length?`<span class="badge b-green"><span class="d"></span>${liveBeds.length} assigned</span>`:`<span class="badge b-gray"><span class="d"></span>0 assigned</span>`}</td>
-      <td style="white-space:normal;max-width:220px;color:var(--muted)">${escapeHtml(r["Beds Included (reference only)"]||"—")}</td>
-      <td>${shortDate(r["Planting Date (target)"])}</td>
-      <td>${escapeHtml(r["Harvest Window (start–end)"]||"—")}</td>
-      <td style="max-width:200px;white-space:normal;color:var(--muted)">${escapeHtml(r["Notes"]||"")}</td>
-    </tr>`;
-  }).join("");
-
-  return `<div class="grid metric-row" style="margin-bottom:22px">
-      ${metricCard("Planned cohorts", fmt(cohorts.length), "planting waves defined", "")}
-      ${metricCard("Beds assigned", fmt(Object.values(bedsByCohort).reduce((s,a)=>s+a.length,0)), "of "+beds.length+" total beds", "")}
-    </div>
-    <div class="panel"><div class="phead"><h3>Planting-wave tracking</h3><span class="note">Defined before beds are planted · "assigned" is live from Bed Master</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Cohort ID</th><th>Crop / variety</th><th>Beds (live)</th><th>Beds included (ref.)</th><th>Planting date</th><th>Harvest window</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-}
-
-/* ====== BEDS ====== */
-function renderBeds(){
-  const beds = (state.data.beds&&state.data.beds.rows)||[];
-  if(!beds.length) return emptyState("Field Beds");
-  const pads = {};
-  beds.forEach(b=>{ const p=b["Pad #"]||"?"; (pads[p]=pads[p]||[]).push(b); });
-  const padKeys = Object.keys(pads).sort((a,b)=>num(a)-num(b));
-  const legend = Object.entries(STATE_COLORS).map(([s,c])=>`<span><i style="background:${c}"></i>${s}</span>`).join("");
-  const blocks = padKeys.map(p=>{
-    const cells = pads[p].map(b=>{
-      const s=b["State Name"]||"Available";
-      const color = STATE_COLORS[s]||"#a9b4ac";
-      const id=b["Bed ID"]||"";
-      return `<div class="bed" style="background:${color}" title="">
-        ${id.replace(/^P0?\d+-B0?/,"B")}
-        <div class="tip"><b>${escapeHtml(id)}</b> · ${escapeHtml(b["Crop / Variety"]||"—")} · ${escapeHtml(s)}${b["Days in State"]?(" · "+b["Days in State"]+"d"):""}${b["Cohort ID"]?(" · "+escapeHtml(b["Cohort ID"])):""}</div>
-      </div>`;
-    }).join("");
-    return `<div class="card" style="margin-bottom:18px">
-      <div class="section-head" style="margin:0 0 14px"><h2 style="font-size:17px">Pad ${escapeHtml(p)}</h2><span class="note">${pads[p].length} beds</span></div>
-      <div class="bed-grid">${cells}</div></div>`;
-  }).join("");
-  return `<div class="card" style="margin-bottom:22px"><div class="legend">${legend}</div></div>${blocks}`;
-}
-
-/* ====== GREENHOUSE ====== */
-function renderGreenhouse(){
-  const gh = (state.data.greenhouse&&state.data.greenhouse.rows)||[];
-  if(!gh.length) return emptyState("Greenhouse");
-  const rows = gh.map(r=>{
-    const st=(r["Status"]||"—");
-    let cls="b-gray";
-    if(/active/i.test(st))cls="b-green"; else if(/idle/i.test(st))cls="b-amber"; else if(/maint/i.test(st))cls="b-blue"; else if(/sanit/i.test(st))cls="b-terra";
-    const occ=num(r["Occupancy %"]);
-    return `<tr>
-      <td><b>Bay ${escapeHtml(r["Bay #"]||"—")}</b></td>
-      <td>${escapeHtml(r["Primary Purpose"]||"—")}</td>
-      <td>${escapeHtml(r["Current Crop"]||"—")}</td>
-      <td>
-        <div style="display:flex;align-items:center;gap:8px"><div style="width:60px;height:7px;border-radius:4px;background:var(--line);overflow:hidden"><div style="height:100%;width:${occ}%;background:var(--green)"></div></div>${occ}%</div>
-      </td>
-      <td><span class="badge ${cls}"><span class="d"></span>${escapeHtml(st)}</span></td>
-      <td>${escapeHtml(r["Date Status Set"]?shortDate(r["Date Status Set"]):"—")}</td>
-      <td style="max-width:240px;white-space:normal;color:var(--muted)">${escapeHtml(r["Notes"]||"")}</td>
-    </tr>`;
-  }).join("");
-  return `<div class="panel"><div class="phead"><h3>10 environmental-control bays</h3><span class="note">Channel B · manager updates status & occupancy</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Bay</th><th>Purpose</th><th>Current crop</th><th>Occupancy</th><th>Status</th><th>Since</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-}
-
-/* ====== HARVEST ====== */
-function renderHarvest(){
-  const h = (state.data.harvest&&state.data.harvest.rows)||[];
-  if(!h.length) return emptyState("Harvest Log");
-  const rows = h.slice().reverse().map(r=>{
-    const st=(r["Cold Chain Status"]||"—");
-    const cls=/ok/i.test(st)?"b-green":"b-red";
-    return `<tr>
-      <td>${shortDate(r["Date"])}</td><td><b>${escapeHtml(r["Bed ID"]||"—")}</b></td>
-      <td>${escapeHtml(r["Crop / Variety"]||"—")}</td><td>${escapeHtml(r["Crop Category"]||"—")}</td>
-      <td>${fmt(num(r["Weight (lb)"]),1)} lb</td>
-      <td>${escapeHtml(r["Harvest Time"]||"—")}</td><td>${escapeHtml(r["Wash Arrival Time"]||"—")}</td>
-      <td>${escapeHtml(r["Minutes to Wash"]||"—")}</td>
-      <td><span class="badge ${cls}"><span class="d"></span>${escapeHtml(st)}</span></td>
-      <td>${escapeHtml(r["Wash Method"]||"—")}</td><td>${escapeHtml(r["Route"]||"—")}</td>
-      <td>${escapeHtml(r["Cohort ID"]||"—")}</td>
-      <td style="max-width:200px;white-space:normal;color:var(--muted)">${escapeHtml(r["Notes"]||"")}</td>
-    </tr>`;
-  }).join("");
-  return `<div class="panel"><div class="phead"><h3>Cold-chain tracking</h3><span class="note">One row per harvest event · 30-min wash threshold</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Bed</th><th>Crop</th><th>Category</th><th>Weight</th><th>Harvest</th><th>Wash arrival</th><th>Min to wash</th><th>Cold chain</th><th>Wash method</th><th>Route</th><th>Cohort</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-}
-
-/* ====== DEMAND & SCR ====== */
-function renderDemand(){
-  const d = (state.data.demand&&state.data.demand.rows)||[];
-  const rows = d.filter(r=>r["Crop Category"]);
-  if(!rows.length) return emptyState("Demand & SCR");
-  const body = rows.map(r=>{
-    const scr=num(r["SCR"]);
-    const total=num(r["Total Supply"]);
-    const dem=num(r["Weekly Demand"]);
-    const barPct = dem>0?Math.min(scr/dem*100,150):0;
-    let cls="b-green", label="Covered";
-    if(scr>0&&scr<1){cls="b-red";label="Activate Ch D";}
-    else if(scr>=1&&scr<1.15){cls="b-amber";label="Watch";}
-    return `<div class="scr-row" style="margin-bottom:6px">
-      <div><b>${escapeHtml(r["Crop Category"])}</b></div>
-      <div class="scr-val">${fmt(num(r["Ch A Supply"]),0)}</div>
-      <div class="scr-val">${fmt(num(r["Ch B Supply"]),0)}</div>
-      <div class="scr-val">${fmt(num(r["Ch C Supply"]),0)}</div>
-      <div class="scr-val">${fmt(dem,0)}</div>
-      <div>
-        <div style="display:flex;align-items:center;justify-content:space-between"><b style="color:${scr>0&&scr<1?'var(--red)':scr<1.15?'var(--amber)':'var(--green)'}">${scr>0?scr.toFixed(2):"—"}</b>
-        <span class="badge ${cls}"><span class="d"></span>${label}</span></div>
-        <div class="scr-bar"><i style="width:${Math.min(scr*100,150)}%;background:${scr>0&&scr<1?'var(--red)':scr<1.15?'var(--amber)':'var(--green)'}"></i></div>
-      </div>
-    </div>`;
-  }).join("");
-  return `<div class="panel"><div class="phead"><h3>Weekly demand matrix & supply coverage ratio</h3><span class="note">SCR &lt; 1.00 → activate Channel D (Bridge Layer)</span></div>
-    <div class="pbody">
-      <div class="scr-row head"><div>Crop category</div><div>Ch A</div><div>Ch B</div><div>Ch C</div><div>Demand</div><div>SCR &amp; status</div></div>
-      <div style="margin-top:8px">${body}</div>
-    </div></div>`;
-}
-
-/* ====== STORAGE ====== */
-function renderStorage(){
-  const s = (state.data.storage&&state.data.storage.rows)||[];
-  if(!s.length) return emptyState("Storage Reserve");
-  const rows = s.map(r=>{
-    const bal=num(r["Balance (lb)"]);
-    const temp=num(r["Temp (F)"]);
-    let tempCls="b-green"; if(temp>0&&(temp<34||temp>38))tempCls="b-red";
-    return `<tr>
-      <td><b>${escapeHtml(r["Crop"]||"—")}</b></td>
-      <td>${shortDate(r["Date In"])}</td><td>${fmt(num(r["Qty In (lb)"]),1)}</td>
-      <td>${fmt(num(r["Qty Drawn (lb)"]),1)}</td><td><b>${fmt(bal,1)}</b></td>
-      <td>${escapeHtml(r["Storage Room"]||"—")}</td>
-      <td>${temp>0?`<span class="badge ${tempCls}"><span class="d"></span>${temp}°F</span>`:"—"}</td>
-      <td>${escapeHtml(r["Humidity %"]||"—")}</td>
-      <td style="max-width:220px;white-space:normal;color:var(--muted)">${escapeHtml(r["Notes"]||"")}</td>
-    </tr>`;
-  }).join("");
-  const total = s.reduce((a,r)=>a+num(r["Balance (lb)"]),0);
-  return `<div class="grid metric-row" style="margin-bottom:22px">${metricCard("Total reserve",fmt(total,1),"lb across all crops",total>0?"good":"")}</div>
-    <div class="panel"><div class="phead"><h3>Channel C ledger</h3><span class="note">Cold-room tolerance 34–38°F</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Crop</th><th>Date in</th><th>Qty in (lb)</th><th>Qty drawn (lb)</th><th>Balance (lb)</th><th>Room</th><th>Temp</th><th>Humidity</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-}
-
-/* ====== RESTAURANTS ====== */
-function renderRestaurants(){
-  const r = (state.data.restaurants&&state.data.restaurants.rows)||[];
-  if(!r.length) return emptyState("Restaurant Delivery Map");
-  const colorMap={"Green":"b-green","Blue":"b-blue","Red":"b-red","Yellow":"b-gold","Purple":"b-terra"};
-  const rows = r.map(x=>{
-    const active=(x["Active"]||"").toLowerCase().startsWith("y");
-    const c=colorMap[x["Color"]]||"b-gray";
-    return `<tr>
-      <td><b>${escapeHtml(x["Restaurant"]||"—")}</b></td>
-      <td style="white-space:normal;max-width:240px">${escapeHtml(x["Address"]||"—")}</td>
-      <td>${escapeHtml(x["Staging Spot"]||"—")}</td>
-      <td><span class="badge ${c}"><span class="d"></span>${escapeHtml(x["Route"]||"—")}</span></td>
-      <td>${escapeHtml(x["QR Code ID"]||"—")}</td>
-      <td>${active?`<span class="badge b-green"><span class="d"></span>Active</span>`:`<span class="badge b-gray"><span class="d"></span>Inactive</span>`}</td>
-      <td>${escapeHtml(x["Contact"]||"—")}</td>
-    </tr>`;
-  }).join("");
-  return `<div class="panel"><div class="phead"><h3>Restaurant delivery map</h3><span class="note">Routes, staging bays & QR dispatch</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Restaurant</th><th>Address</th><th>Staging spot</th><th>Route</th><th>QR ID</th><th>Status</th><th>Contact</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-}
-
-/* ====== PACKED & STAGED ====== */
-function renderPacked(){
-  const p = (state.data.packed&&state.data.packed.rows)||[];
-  if(!p.length) return emptyState("Packed & Staged");
-  const rows = p.slice().reverse().map(r=>`<tr>
-    <td>${shortDate(r["Date"])}</td><td><b>${escapeHtml(r["Bed ID"]||"—")}</b></td>
-    <td>${escapeHtml(r["Crop / Variety"]||"—")}</td><td>${escapeHtml(r["Target Outlet (Restaurant)"]||r["Restaurant"]||"—")}</td>
-    <td>${escapeHtml(r["Crate/Unit Count"]||"—")}</td><td>${fmt(num(r["Weight (lb)"]),1)} lb</td>
-    <td>${escapeHtml(r["Staging Location"]||r["Staging Spot"]||"—")}</td>
-    <td>${escapeHtml(r["Route"]||"—")}</td>
-    <td>${(r["QR Scan Confirmed?"]||"").toLowerCase().startsWith("y")?`<span class="badge b-green"><span class="d"></span>Confirmed</span>`:"—"}</td>
-    <td>${escapeHtml(r["Cohort ID"]||"—")}</td>
-    <td style="max-width:200px;white-space:normal;color:var(--muted)">${escapeHtml(r["Notes"]||"")}</td>
-  </tr>`).join("");
-  return `<div class="panel"><div class="phead"><h3>Ready-to-deliver ledger</h3><span class="note">One row per pack event · append-only</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Bed</th><th>Crop</th><th>Outlet</th><th>Crates</th><th>Weight</th><th>Staging</th><th>Route</th><th>QR</th><th>Cohort</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-}
-
-/* ====== TASKS ====== */
-function renderTasks(){
-  const t = (state.data.tasks&&state.data.tasks.rows)||[];
-  if(!t.length) return emptyState("Daily Tasks");
-  const stMap={"Complete":"b-green","In Progress":"b-blue","Pending":"b-amber","Skipped":"b-gray"};
-  const rows = t.slice().reverse().map(r=>{
-    const st=r["Status"]||"—";
-    return `<tr>
-      <td>${shortDate(r["Date"])}</td><td>${escapeHtml(r["Day of Week"]||"—")}</td>
-      <td>${escapeHtml(r["Season"]||"—")}</td><td>${escapeHtml(r["Time Block"]||"—")}</td>
-      <td style="white-space:normal;max-width:280px">${escapeHtml(r["Task Description"]||"—")}</td>
-      <td>${escapeHtml(r["Assigned To"]||"—")}</td>
-      <td><span class="badge ${stMap[st]||'b-gray'}"><span class="d"></span>${escapeHtml(st)}</span></td>
-      <td style="max-width:200px;white-space:normal;color:var(--muted)">${escapeHtml(r["Notes"]||"")}</td>
-    </tr>`;
-  }).join("");
-  return `<div class="panel"><div class="phead"><h3>Daily task execution log</h3><span class="note">Level 3 seasonal protocols</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Day</th><th>Season</th><th>Time block</th><th>Task</th><th>Assigned</th><th>Status</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-}
-
-/* ====== ESCALATIONS ====== */
-function renderEscalations(){
-  const e = (state.data.escalations&&state.data.escalations.rows)||[];
-  if(!e.length) return emptyState("Escalations");
-  const rows = e.slice().reverse().map(r=>{
-    const res=(r["Resolved (Y/N)"]||"").toUpperCase().startsWith("Y");
-    return `<tr>
-      <td>${shortDate(r["Date"])}</td>
-      <td><span class="badge b-terra"><span class="d"></span>${escapeHtml(r["Check Type"]||"—")}</span></td>
-      <td style="white-space:normal;max-width:260px">${escapeHtml(r["Details"]||"—")}</td>
-      <td>${escapeHtml(r["Metric Value"]||"—")}</td><td>${escapeHtml(r["Threshold"]||"—")}</td>
-      <td style="white-space:normal;max-width:220px">${escapeHtml(r["Action Taken"]||"—")}</td>
-      <td>${res?`<span class="badge b-green"><span class="d"></span>Resolved</span>`:`<span class="badge b-red"><span class="d"></span>Open</span>`}</td>
-      <td>${escapeHtml(r["Resolved Date"]?shortDate(r["Resolved Date"]):"—")}</td>
-    </tr>`;
-  }).join("");
-  return `<div class="panel"><div class="phead"><h3>End-of-day escalation log</h3><span class="note">6 mandatory checks · unresolved items surface on Overview</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Check type</th><th>Details</th><th>Metric</th><th>Threshold</th><th>Action taken</th><th>Status</th><th>Resolved</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-}
-
-/* ---------- init ---------- */
-loadCfg();
-renderNav();
-loadAll(false);
-</script>
+    // ---------------------------------------------------------------
+    // Boot: restore a saved manager session if present
+    // ---------------------------------------------------------------
+    try {
+      var saved = JSON.parse(localStorage.getItem(SESSION_KEY));
+      if (saved && saved.workerId && (saved.role === 'Manager' || saved.role === 'Founder')) {
+        state.workerId = saved.workerId;
+        state.fullName = saved.fullName;
+        state.role = saved.role;
+        document.getElementById('whoName').textContent = saved.fullName + ' (' + saved.role + ')';
+        document.getElementById('topbarWho').style.display = 'flex';
+        showScreen('screen-board');
+        loadBoard();
+      }
+    } catch (e) { /* no saved session, stay on login */ }
+  })();
+  </script>
 </body>
 </html>
