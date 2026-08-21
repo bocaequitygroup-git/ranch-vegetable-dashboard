@@ -126,6 +126,64 @@
 
     .empty-state { text-align: center; padding: 60px 20px; color: var(--soil); }
     .empty-state .glyph { font-size: 36px; margin-bottom: 10px; }
+
+    /* ---- Toolbar: search / filters / auto-refresh ---- */
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+      margin-bottom: 14px; padding: 12px; background: var(--paper-dim);
+      border: 2px solid var(--line); border-radius: var(--radius);
+    }
+    .toolbar input[type=text], .toolbar select {
+      padding: 9px 10px; font-size: 13px; font-family: inherit;
+      border: 2px solid var(--line-strong); border-radius: 8px;
+      background: #fff; color: var(--ink); min-height: 38px;
+    }
+    .toolbar input[type=text] { flex: 1 1 200px; min-width: 160px; }
+    .toolbar select { flex: 0 1 150px; }
+    .toggle-wrap {
+      display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+      color: var(--soil); cursor: pointer; user-select: none; margin-left: auto;
+    }
+    .toggle-wrap input { width: 16px; height: 16px; accent-color: var(--field-green); cursor: pointer; }
+
+    /* ---- Sortable headers ---- */
+    table.board th.sortable { cursor: pointer; white-space: nowrap; }
+    table.board th.sortable:hover { color: var(--ink); }
+    table.board th .sort-arrow { font-size: 9px; margin-left: 3px; opacity: 0.5; }
+    table.board th.sort-active .sort-arrow { opacity: 1; color: var(--rust); }
+    table.board tbody tr { cursor: pointer; }
+    table.board tbody tr:hover { background: var(--paper-dim); }
+    table.board tr.has-exception:hover { background: #F6DCD8; }
+
+    .overrun-badge {
+      display: inline-block; margin-top: 4px; padding: 2px 7px; border-radius: 6px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+      background: var(--alert-red); color: #fff;
+    }
+
+    /* ---- Drill-down modal ---- */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(28,35,33,0.55);
+      align-items: center; justify-content: center; padding: 20px; z-index: 50;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-panel {
+      background: #fff; border-radius: var(--radius); max-width: 480px; width: 100%;
+      max-height: 85vh; overflow-y: auto; padding: 22px; position: relative;
+    }
+    .modal-close {
+      position: absolute; top: 14px; right: 14px; background: var(--paper-dim);
+      border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center;
+      justify-content: center; font-size: 16px; font-weight: 700; color: var(--soil); cursor: pointer;
+    }
+    .modal-panel h2 { font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: 0.03em; margin: 0 0 4px; }
+    .modal-sub { font-size: 12px; color: var(--soil); font-family: 'IBM Plex Mono', monospace; margin-bottom: 16px; }
+    .modal-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .modal-row:last-of-type { border-bottom: none; }
+    .modal-row .k { color: var(--soil); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .modal-row .v { font-weight: 600; text-align: right; }
+    .modal-notes { margin-top: 14px; padding: 12px; background: var(--paper-dim); border-radius: 8px; font-size: 13px; }
+    .modal-photo { width: 100%; border-radius: 8px; margin-top: 12px; border: 2px solid var(--line); }
   </style>
 </head>
 <body>
@@ -161,8 +219,26 @@
         </button>
       </div>
       <div class="error-banner" id="boardError"></div>
+      <div class="toolbar">
+        <input type="text" id="filterSearch" placeholder="Search worker, bed, crop, cohort\u2026">
+        <select id="filterBlock"><option value="">All Blocks</option></select>
+        <select id="filterActivity"><option value="">All Activities</option></select>
+        <select id="filterException">
+          <option value="">Any Exception Status</option>
+          <option value="__has__">Has Exception</option>
+          <option value="Critical">Critical</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
+        <label class="toggle-wrap"><input type="checkbox" id="autoRefreshToggle"> Live refresh (30s)</label>
+      </div>
       <div id="boardContent"></div>
     </section>
+  </div>
+
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-panel" id="modalPanel"></div>
   </div>
 
   <script>
@@ -179,7 +255,13 @@
     var SCRIPT_URL = "https://script.google.com/macros/s/AKfycby9x30ocRrG9AwOYATrspBX1zyJgWKrSjii5qp7rag6tvBrKUGUfOdeKCuPU_UzS_sQyg/exec";
 
     var SESSION_KEY = 'vpos_manager_app_session_v1';
-    var state = { workerId: null, fullName: null, role: null };
+    var OVERRUN_MINUTES = 120;
+    var state = {
+      workerId: null, fullName: null, role: null,
+      allRows: [],            // last raw response from get-live-board
+      sortKey: 'Elapsed_Minutes', sortDir: 'desc',
+      autoRefreshHandle: null
+    };
 
     function callApi(action, payload) {
       return fetch(SCRIPT_URL, {
@@ -269,48 +351,126 @@
     });
 
     // ---------------------------------------------------------------
-    // Board (manual refresh only, per spec -- no auto-poll interval)
+    // Board data loading (server round-trip) vs. board rendering
+    // (client-side filter/sort/render, no server call). loadBoard() is
+    // the only thing that talks to the API; everything else -- search,
+    // filters, sorting, the drill-down modal -- operates on the last
+    // fetched state.allRows in memory.
     // ---------------------------------------------------------------
     function loadBoard() {
       clearError('boardError');
       var btn = document.getElementById('btnRefresh');
       btn.disabled = true; btn.classList.add('spinning');
 
-      callApi('get-live-board', { workerId: state.workerId }).then(function (res) {
+      return callApi('get-live-board', { workerId: state.workerId }).then(function (res) {
         btn.disabled = false; btn.classList.remove('spinning');
         if (!res.success) {
           showError('boardError', res.error || 'Could not load the live board.');
           return;
         }
-        renderBoard(res.board);
+        state.allRows = res.board;
+        populateFilterOptions(res.board);
+        renderFilteredBoard();
         document.getElementById('boardMeta').textContent =
           res.board.length + ' active session' + (res.board.length === 1 ? '' : 's') +
           ' \u2014 last updated ' + new Date().toLocaleTimeString();
       });
     }
 
+    // Rebuilds the Block/Activity filter <select> options from whatever's
+    // actually in the current data, preserving the user's current pick if
+    // it's still a valid option after a refresh.
+    function populateFilterOptions(rows) {
+      ['filterBlock', 'filterActivity'].forEach(function (id) {
+        var field = id === 'filterBlock' ? 'Block_ID' : 'Activity_Type';
+        var el = document.getElementById(id);
+        var current = el.value;
+        var values = Array.from(new Set(rows.map(function (r) { return r[field]; }).filter(Boolean))).sort();
+        el.innerHTML = '<option value="">' + (id === 'filterBlock' ? 'All Blocks' : 'All Activities') + '</option>' +
+          values.map(function (v) {
+            return '<option value="' + escapeHtml(v) + '">' + escapeHtml(field === 'Activity_Type' ? humanize(v) : v) + '</option>';
+          }).join('');
+        if (values.indexOf(current) !== -1) el.value = current;
+      });
+    }
+
+    function getFilteredSortedRows() {
+      var search = document.getElementById('filterSearch').value.trim().toLowerCase();
+      var block = document.getElementById('filterBlock').value;
+      var activity = document.getElementById('filterActivity').value;
+      var exception = document.getElementById('filterException').value;
+
+      var rows = state.allRows.filter(function (r) {
+        if (search) {
+          var hay = [r.Worker_Name, r.Worker_ID, r.Bed_ID, r.Crop_Name, r.Cohort_ID].join(' ').toLowerCase();
+          if (hay.indexOf(search) === -1) return false;
+        }
+        if (block && r.Block_ID !== block) return false;
+        if (activity && r.Activity_Type !== activity) return false;
+        if (exception === '__has__' && !r.Exception_Flag) return false;
+        if (exception && exception !== '__has__' && r.Exception_Severity !== exception) return false;
+        return true;
+      });
+
+      var key = state.sortKey, dir = state.sortDir === 'asc' ? 1 : -1;
+      rows.sort(function (a, b) {
+        var av = a[key], bv = b[key];
+        if (av === null || av === undefined) av = '';
+        if (bv === null || bv === undefined) bv = '';
+        if (typeof av === 'number' || typeof bv === 'number') return ((av || 0) - (bv || 0)) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+
+      return rows;
+    }
+
+    function renderFilteredBoard() {
+      renderBoard(getFilteredSortedRows());
+    }
+
+    var SORT_COLUMNS = [
+      { key: 'Worker_Name', label: 'Worker' },
+      { key: 'Bed_ID', label: 'Bed' },
+      { key: 'Crop_Name', label: 'Cohort / Crop' },
+      { key: 'Activity_Type', label: 'Activity' },
+      { key: 'Session_Status', label: 'Status' },
+      { key: 'Start_Time', label: 'Start' },
+      { key: 'Elapsed_Minutes', label: 'Elapsed' },
+      { key: 'Exception_Severity', label: 'Exception' }
+    ];
+
     function renderBoard(rows) {
       var container = document.getElementById('boardContent');
-      if (!rows.length) {
+      if (!state.allRows.length) {
         container.innerHTML =
           '<div class="empty-state"><div class="glyph">\u2600</div>No active or paused sessions right now.</div>';
         return;
       }
+      if (!rows.length) {
+        container.innerHTML =
+          '<div class="empty-state"><div class="glyph">\uD83D\uDD0D</div>No sessions match the current filters.</div>';
+        return;
+      }
 
-      var html = '<div class="board-wrap"><table class="board"><thead><tr>' +
-        '<th>Worker</th><th>Bed</th><th>Cohort / Crop</th><th>Activity</th>' +
-        '<th>Status</th><th>Start</th><th>Elapsed</th><th>Exception</th>' +
-        '</tr></thead><tbody>';
+      var html = '<div class="board-wrap"><table class="board"><thead><tr>';
+      SORT_COLUMNS.forEach(function (col) {
+        var active = state.sortKey === col.key;
+        html += '<th class="sortable' + (active ? ' sort-active' : '') + '" data-sort-key="' + col.key + '">' +
+          col.label + '<span class="sort-arrow">' + (active ? (state.sortDir === 'asc' ? '\u25B2' : '\u25BC') : '\u2195') + '</span></th>';
+      });
+      html += '</tr></thead><tbody>';
 
       rows.forEach(function (r) {
-        html += '<tr class="' + (r.Exception_Flag ? 'has-exception' : '') + '">';
+        var isOverrun = r.Session_Status === 'ACTIVE' && r.Elapsed_Minutes !== null && r.Elapsed_Minutes > OVERRUN_MINUTES;
+        html += '<tr class="' + (r.Exception_Flag ? 'has-exception' : '') + '" data-session-id="' + escapeHtml(r.Session_ID) + '">';
         html += '<td><div class="worker-name">' + escapeHtml(r.Worker_Name) + '</div><div class="worker-id">' + escapeHtml(r.Worker_ID) + '</div></td>';
         html += '<td><span class="tag">' + escapeHtml(r.Bed_ID) + '</span>' + (r.Block_ID ? '<div class="worker-id" style="margin-top:4px;">' + escapeHtml(r.Block_ID) + '</div>' : '') + '</td>';
         html += '<td>' + (r.Cohort_ID ? '<span class="tag" style="margin-bottom:4px;">' + escapeHtml(r.Cohort_ID) + '</span><br>' : '') + escapeHtml(r.Crop_Name) + '</td>';
         html += '<td>' + escapeHtml(humanize(r.Activity_Type)) + '</td>';
         html += '<td><span class="state-pill ' + escapeHtml(r.Session_Status) + '">' + escapeHtml(r.Session_Status) + '</span></td>';
         html += '<td>' + formatTime(r.Start_Time) + '</td>';
-        html += '<td class="elapsed">' + formatElapsed(r.Elapsed_Minutes) + '</td>';
+        html += '<td class="elapsed">' + formatElapsed(r.Elapsed_Minutes) +
+          (isOverrun ? '<div class="overrun-badge">Overrun</div>' : '') + '</td>';
         html += '<td>' + (r.Exception_Flag
           ? '<span class="exc-badge ' + escapeHtml(r.Exception_Severity) + '">' + escapeHtml(r.Exception_Type || 'Exception') +
             (r.Exception_Severity ? ' \u00b7 ' + escapeHtml(r.Exception_Severity) : '') + '</span>' +
@@ -323,7 +483,85 @@
       container.innerHTML = html;
     }
 
+    // Event delegation on the board container -- the table gets rebuilt on
+    // every render, so binding once here (rather than re-binding per row/
+    // header after each render) keeps this simple and leak-free.
+    document.getElementById('boardContent').addEventListener('click', function (e) {
+      var th = e.target.closest('th.sortable');
+      if (th) {
+        var key = th.dataset.sortKey;
+        if (state.sortKey === key) {
+          state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.sortKey = key;
+          state.sortDir = 'asc';
+        }
+        renderFilteredBoard();
+        return;
+      }
+      var row = e.target.closest('tr[data-session-id]');
+      if (row) openSessionModal(row.dataset.sessionId);
+    });
+
+    ['filterSearch', 'filterBlock', 'filterActivity', 'filterException'].forEach(function (id) {
+      var el = document.getElementById(id);
+      el.addEventListener(id === 'filterSearch' ? 'input' : 'change', renderFilteredBoard);
+    });
+
     document.getElementById('btnRefresh').addEventListener('click', loadBoard);
+
+    // ---------------------------------------------------------------
+    // Auto-refresh toggle (opt-in -- manual refresh remains the default)
+    // ---------------------------------------------------------------
+    document.getElementById('autoRefreshToggle').addEventListener('change', function () {
+      if (this.checked) {
+        state.autoRefreshHandle = setInterval(loadBoard, 30000);
+      } else if (state.autoRefreshHandle) {
+        clearInterval(state.autoRefreshHandle);
+        state.autoRefreshHandle = null;
+      }
+    });
+
+    // ---------------------------------------------------------------
+    // Drill-down modal
+    // ---------------------------------------------------------------
+    function openSessionModal(sessionId) {
+      var r = state.allRows.filter(function (row) { return row.Session_ID === sessionId; })[0];
+      if (!r) return;
+      var isOverrun = r.Session_Status === 'ACTIVE' && r.Elapsed_Minutes !== null && r.Elapsed_Minutes > OVERRUN_MINUTES;
+
+      var html = '<div class="modal-close" id="modalCloseBtn">\u2715</div>';
+      html += '<h2>' + escapeHtml(r.Worker_Name) + '</h2>';
+      html += '<div class="modal-sub">' + escapeHtml(r.Session_ID) + '</div>';
+      html += modalRow('Worker ID', escapeHtml(r.Worker_ID));
+      html += modalRow('Bed', escapeHtml(r.Bed_ID) + (r.Block_ID ? ' (' + escapeHtml(r.Block_ID) + ')' : ''));
+      html += modalRow('Cohort', escapeHtml(r.Cohort_ID || '\u2014'));
+      html += modalRow('Crop', escapeHtml(r.Crop_Name));
+      html += modalRow('Activity', escapeHtml(humanize(r.Activity_Type)));
+      html += modalRow('Status', '<span class="state-pill ' + escapeHtml(r.Session_Status) + '">' + escapeHtml(r.Session_Status) + '</span>');
+      html += modalRow('Started', formatTime(r.Start_Time));
+      html += modalRow('Elapsed', formatElapsed(r.Elapsed_Minutes) + (isOverrun ? ' \u2014 over ' + OVERRUN_MINUTES + ' min' : ''));
+
+      if (r.Exception_Flag) {
+        html += '<div class="modal-notes"><strong>' + escapeHtml(r.Exception_Type || 'Exception') + '</strong>' +
+          (r.Exception_Severity ? ' \u00b7 ' + escapeHtml(r.Exception_Severity) : '') +
+          (r.Exception_Notes ? '<br>' + escapeHtml(r.Exception_Notes) : '') + '</div>';
+        if (r.Photo_URL) {
+          html += '<img class="modal-photo" src="' + escapeHtml(r.Photo_URL) + '" alt="Exception photo">';
+        }
+      }
+
+      document.getElementById('modalPanel').innerHTML = html;
+      document.getElementById('modalOverlay').classList.add('show');
+    }
+    function modalRow(k, v) {
+      return '<div class="modal-row"><span class="k">' + escapeHtml(k) + '</span><span class="v">' + v + '</span></div>';
+    }
+    function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
+
+    document.getElementById('modalOverlay').addEventListener('click', function (e) {
+      if (e.target === this || e.target.id === 'modalCloseBtn') closeModal();
+    });
 
     // ---------------------------------------------------------------
     // Boot: restore a saved manager session if present
