@@ -516,38 +516,49 @@ const TODAY = new Date('2026-08-26T12:00:00');
 const DAY_MS = 86400000;
 
 /* ==================================================================
-   LIVE CONNECTION — talks to the Apps Script Web App via JSONP so it
-   never runs into Apps Script's CORS/preflight limitations. Falls
-   back to the embedded snapshot above until (and unless) a URL is
-   configured.
+   LIVE CONNECTION — talks to the SAME Apps Script Web App /exec URL
+   that WorkerApp/ManagerApp already use, through its existing
+   doPost -> routeAction_ router (see DashboardAPI.gs on the backend:
+   two new cases, 'get-manager-today-view' and 'verify-bed-activity',
+   were added there; 'resolve-exception' reuses the action that
+   already existed for ManagerApp).
+
+   This is a cross-origin POST, same as ManagerApp.html already does
+   from its own separate Apps Script project. The body is sent as
+   text/plain (not application/json) specifically so the browser
+   treats it as a CORS "simple request" and skips the OPTIONS
+   preflight — Apps Script web apps don't implement one, so a
+   preflighted request just fails. doPost() on the other end still
+   parses e.postData.contents as JSON regardless of the declared
+   content type, so this round-trips fine.
+
+   Falls back to the embedded snapshot above until (and unless) a URL
+   is configured.
    ================================================================== */
 const CONN_KEY = 'vpos_apps_script_url';
 let LIVE_MODE = false;
 let APPS_SCRIPT_URL = localStorage.getItem(CONN_KEY) || '';
 
-function jsonp(url, params){
+function callApi_(url, action, payload){
   return new Promise((resolve, reject)=>{
     if(!url){ reject(new Error('No Apps Script URL configured')); return; }
-    const cbName = 'vposCb_' + Math.random().toString(36).slice(2);
-    const qs = Object.entries(params||{}).map(([k,v])=>encodeURIComponent(k)+'='+encodeURIComponent(v)).join('&');
-    const sep = url.includes('?') ? '&' : '?';
-    const src = url + sep + qs + (qs?'&':'') + 'callback=' + cbName;
-    const script = document.createElement('script');
-    let settled = false;
-    const cleanup = ()=>{ delete window[cbName]; script.remove(); clearTimeout(timer); };
     const timer = setTimeout(()=>{
-      if(settled) return; settled = true; cleanup();
+      controller.abort();
       reject(new Error('Timed out reaching the Apps Script Web App'));
     }, 15000);
-    window[cbName] = (data)=>{
-      if(settled) return; settled = true; cleanup(); resolve(data);
-    };
-    script.onerror = ()=>{
-      if(settled) return; settled = true; cleanup();
-      reject(new Error('Could not reach that URL'));
-    };
-    script.src = src;
-    document.body.appendChild(script);
+    const controller = new AbortController();
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action, payload: payload || {} }),
+      signal: controller.signal
+    }).then(res => res.json()).then(data => {
+      clearTimeout(timer);
+      resolve(data);
+    }).catch(err => {
+      clearTimeout(timer);
+      reject(new Error(err && err.name === 'AbortError' ? 'Timed out reaching the Apps Script Web App' : 'Could not reach that URL'));
+    });
   });
 }
 
@@ -561,8 +572,8 @@ function setConnUI(status, label){
 async function connectLive(url, {silent} = {}){
   if(!silent){ document.getElementById('conn-status').textContent = 'Connecting…'; }
   try{
-    const res = await jsonp(url, {action:'get-manager-today-view'});
-    if(!res.ok) throw new Error(res.error || 'Server returned an error');
+    const res = await callApi_(url, 'get-manager-today-view');
+    if(!res.success) throw new Error(res.error || 'Server returned an error');
     DATA = res.data;
     LIVE_MODE = true;
     APPS_SCRIPT_URL = url;
@@ -1066,8 +1077,8 @@ document.addEventListener('click', async (e)=>{
     if(LIVE_MODE){
       verifyBtn.disabled = true; verifyBtn.textContent = 'Verifying…';
       try{
-        const res = await jsonp(APPS_SCRIPT_URL, {action:'verify-bed-activity', logId, verifiedBy:'USR-MANAGER1'});
-        if(!res.ok) throw new Error(res.error);
+        const res = await callApi_(APPS_SCRIPT_URL, 'verify-bed-activity', {logId, managerId:'USR-MANAGER1'});
+        if(!res.success) throw new Error(res.error);
         toast(`${r.Bed_ID} verified — DOB locked in the sheet.`);
         await connectLive(APPS_SCRIPT_URL, {silent:true});
       }catch(err){ toast('Could not verify: ' + err.message); renderAll(); }
@@ -1085,8 +1096,8 @@ document.addEventListener('click', async (e)=>{
     if(LIVE_MODE){
       resolveBtn.disabled = true; resolveBtn.textContent = 'Resolving…';
       try{
-        const res = await jsonp(APPS_SCRIPT_URL, {action:'resolve-exception', exceptionId:excId, resolvedBy:'USR-MANAGER1'});
-        if(!res.ok) throw new Error(res.error);
+        const res = await callApi_(APPS_SCRIPT_URL, 'resolve-exception', {exceptionId:excId, managerId:'USR-MANAGER1'});
+        if(!res.success) throw new Error(res.error);
         toast(`Exception ${excId} resolved in the sheet.`);
         await connectLive(APPS_SCRIPT_URL, {silent:true});
       }catch(err){ toast('Could not resolve: ' + err.message); renderAll(); }
