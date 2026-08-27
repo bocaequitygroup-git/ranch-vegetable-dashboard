@@ -536,8 +536,15 @@ const DAY_MS = 86400000;
    is configured.
    ================================================================== */
 const CONN_KEY = 'vpos_apps_script_url';
+// Hardcoded so the Dashboard auto-connects on load, same pattern as
+// WorkerApp.html/ManagerApp.html's WEB_APP_URL constant -- this is the
+// WorkerApp project's deployed /exec URL, not a separate project's URL.
+// The connect box below still works as a manual override (e.g. if this
+// project is ever redeployed under a new deployment ID) and whatever's
+// typed there takes over via localStorage from that point on.
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwUFXoHDFSUArQCIqkh2De8-fwPfWSG9LRvtagJPzmJdFaBx_95av5V57NzYs1J1IZLnA/exec';
 let LIVE_MODE = false;
-let APPS_SCRIPT_URL = localStorage.getItem(CONN_KEY) || '';
+let APPS_SCRIPT_URL = localStorage.getItem(CONN_KEY) || DEFAULT_APPS_SCRIPT_URL;
 
 function callApi_(url, action, payload){
   return new Promise((resolve, reject)=>{
