@@ -336,7 +336,7 @@
         <span class="conn-dot" id="conn-dot"></span><span id="conn-label">Snapshot mode</span>
       </button>
       <button class="btn btn-ghost" id="conn-quick-refresh-btn" title="Reconnect / refresh live data" style="padding:6px 10px;">⟳</button>
-      <div class="today-pill" id="today-pill">Wed, Aug 26 2026</div>
+      <div class="today-pill" id="today-pill">Loading…</div>
     </div>
   </div>
   <div class="metric-strip">
@@ -547,7 +547,21 @@
 <script>
 const SNAPSHOT = JSON.parse(document.getElementById('vpos-data').textContent);
 let DATA = SNAPSHOT;
-const TODAY = new Date('2026-08-26T12:00:00');
+// BUG FIX (2026-09-01): this was hardcoded to '2026-08-26T12:00:00' -- a
+// leftover from whenever this dashboard was first built/tested. Every
+// date-relative computation in this file (the Upcoming Calendar Schedule
+// window/sort, the today-pill label, and each lifecycle card's Crop Day
+// count) was anchored to that frozen date instead of the real one, so a
+// cohort planted after Aug 26 (e.g. COH-BTL-2026-001 on Sep 1) would
+// either fall outside the +/- day windows renderCalendar() checks against,
+// or sort far enough from "today" that it never made the events.slice(0,18)
+// cutoff -- looking like it was simply missing from the calendar, when the
+// underlying IRRIGATION_CALENDAR data was actually fine.
+const TODAY = new Date();
+document.addEventListener('DOMContentLoaded', ()=>{
+  const pill = document.getElementById('today-pill');
+  if(pill) pill.textContent = `${dow(TODAY)}, ${fmtDate(TODAY)}`;
+});
 const DAY_MS = 86400000;
 
 /* ==================================================================
