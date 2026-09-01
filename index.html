@@ -678,6 +678,20 @@ function toast(msg){
   toast._h = setTimeout(()=>t.classList.remove('show'), 2600);
 }
 
+/* ---------- planting-activity whitelist ----------
+   Mirrors PLANTING_ACTIVITY_TYPES_ in DashboardAPI.gs (server side). Only
+   these Activity_Type values represent an actual planting event and are
+   allowed to produce a DOB / lifecycle card. Everything else (IrrigationCheck,
+   LandPrep, Harvest, HarvestPrep, CropCleanup, ...) can still be verified
+   (Verified_By gets set) but must never be treated as "this bed got planted."
+   BUG FIX (2026-09-01): before this, renderLifecycle() built a lifecycle
+   card off ANY verified activity row, and snapshot mode's click handler
+   locked a DOB the same unconditional way -- same root cause as the
+   server-side handleVerifyBedActivity_ bug, just duplicated here in the
+   client. Keep this list in sync with DashboardAPI.gs's copy. */
+const PLANTING_ACTIVITY_TYPES = ['Seeding', 'Replanting'];
+function isPlantingActivity_(activityType){ return PLANTING_ACTIVITY_TYPES.indexOf(activityType) !== -1; }
+
 /* ---------- local persistence (this browser only) ---------- */
 const LS_KEY = 'vpos_dashboard_state_v1';
 function loadState(){
@@ -734,7 +748,7 @@ function renderVerify(){
         ${isOpen ? `
           <button class="btn btn-ghost" data-inspect="${r.Bed_ID}">Inspect</button>
           <button class="btn btn-ghost" data-reassign="${r.Log_ID}">Reassign</button>
-          <button class="btn btn-primary" data-verify="${r.Log_ID}">Verify &amp; Lock DOB</button>
+          <button class="btn btn-primary" data-verify="${r.Log_ID}">${isPlantingActivity_(r.Activity_Type) ? 'Verify &amp; Lock DOB' : 'Verify'}</button>
         ` : `<span class="stage-pill" style="background:var(--ok-bg);color:var(--moss-dark);">Verified</span>`}
       </div>
     `;
@@ -766,16 +780,28 @@ function renderLifecycle(){
   grid.innerHTML = '';
 
   // Snapshot-mode verifications live only in this browser's STATE.verified.
-  const localEntries = Object.entries(STATE.verified).map(([logId, v]) => ({logId, dob: v.dob}));
+  // BUG FIX (2026-09-01): a verified non-planting activity now stores
+  // dob:null (see the click handler above) -- filter those out here so a
+  // verified IrrigationCheck/HarvestPrep/etc. never gets a lifecycle card.
+  const localEntries = Object.entries(STATE.verified)
+    .filter(([logId, v]) => v.dob)
+    .map(([logId, v]) => ({logId, dob: v.dob}));
 
   // Live-mode verifications write Verified_By (+Verified_At) straight to
   // FIELD_ACTIVITY_LOG via handleVerifyBedActivity_ -- they never touch
   // STATE.verified, so pull them from DATA directly. No DOB field is written
   // back by that handler, so use the activity's own Timestamp as DOB, same
   // convention snapshot mode already uses above.
+  // BUG FIX (2026-09-01): also gated on Activity_Type now -- Verified_By
+  // alone used to be treated as "this bed got planted," which is exactly
+  // the bug that let a verified IrrigationCheck lock a bogus DOB. The
+  // server-side fix (DashboardAPI.gs) stops NEW bad locks, but this filter
+  // still matters: it's what stops the dashboard from drawing a lifecycle
+  // card for a verified non-planting row even though Verified_By is
+  // (correctly) set on it.
   const liveEntries = LIVE_MODE
     ? DATA.field_activity_log
-        .filter(r => r.Verified_By && !STATE.verified[r.Log_ID])
+        .filter(r => r.Verified_By && isPlantingActivity_(r.Activity_Type) && !STATE.verified[r.Log_ID])
         .map(r => ({logId: r.Log_ID, dob: (r.Timestamp || '').split(' ')[0]}))
     : [];
 
@@ -1227,18 +1253,28 @@ document.addEventListener('click', async (e)=>{
   if(verifyBtn){
     const logId = verifyBtn.getAttribute('data-verify');
     const r = DATA.field_activity_log.find(x=>x.Log_ID===logId);
+    const plantingActivity = isPlantingActivity_(r.Activity_Type);
     if(LIVE_MODE){
       verifyBtn.disabled = true; verifyBtn.textContent = 'Verifying…';
       try{
         const res = await callApi_(APPS_SCRIPT_URL, 'verify-bed-activity', {logId, managerId:'USR-MANAGER1'});
         if(!res.success) throw new Error(res.error);
-        toast(`${r.Bed_ID} verified — DOB locked in the sheet.`);
+        toast(plantingActivity ? `${r.Bed_ID} verified — DOB locked in the sheet.` : `${r.Bed_ID} verified.`);
         await connectLive(APPS_SCRIPT_URL, {silent:true});
       }catch(err){ toast('Could not verify: ' + err.message); renderAll(); }
     } else {
-      STATE.verified[logId] = {dob: r.Timestamp.split(' ')[0], verifiedAt: new Date().toISOString()};
+      // dob stays null for a non-planting activity -- renderLifecycle()
+      // below only builds a card for entries with a truthy dob, so this
+      // alone (not a second flag) is what keeps a verified IrrigationCheck/
+      // HarvestPrep/etc. from spawning a bogus lifecycle card.
+      STATE.verified[logId] = {
+        dob: plantingActivity ? r.Timestamp.split(' ')[0] : null,
+        verifiedAt: new Date().toISOString()
+      };
       saveState(STATE);
-      toast(`${r.Bed_ID} verified — DOB locked, lifecycle activated. (snapshot mode, not saved to the sheet)`);
+      toast(plantingActivity
+        ? `${r.Bed_ID} verified — DOB locked, lifecycle activated. (snapshot mode, not saved to the sheet)`
+        : `${r.Bed_ID} verified. (snapshot mode, not saved to the sheet)`);
       renderAll();
     }
     return;
