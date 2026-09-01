@@ -335,6 +335,7 @@
       <button class="conn-pill" id="conn-pill" title="Click to manage the live connection">
         <span class="conn-dot" id="conn-dot"></span><span id="conn-label">Snapshot mode</span>
       </button>
+      <button class="btn btn-ghost" id="conn-quick-refresh-btn" title="Reconnect / refresh live data" style="padding:6px 10px;">⟳</button>
       <div class="today-pill" id="today-pill">Wed, Aug 26 2026</div>
     </div>
   </div>
@@ -580,14 +581,14 @@ const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwUFXoH
 let LIVE_MODE = false;
 let APPS_SCRIPT_URL = localStorage.getItem(CONN_KEY) || DEFAULT_APPS_SCRIPT_URL;
 
-function callApi_(url, action, payload){
+function callApi_(url, action, payload, timeoutMs){
   return new Promise((resolve, reject)=>{
     if(!url){ reject(new Error('No Apps Script URL configured')); return; }
+    const controller = new AbortController();
     const timer = setTimeout(()=>{
       controller.abort();
       reject(new Error('Timed out reaching the Apps Script Web App'));
-    }, 15000);
-    const controller = new AbortController();
+    }, timeoutMs || 15000);
     fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -618,10 +619,19 @@ function setFooterNote(){
     : 'Source: Ranch_Vegetable_VPOS_MASTER_v2026.xlsx (offline snapshot). Verifications and exception resolutions made here are saved to your browser only and do not write back to the workbook.';
 }
 
+// get-manager-today-view reads ~20 tabs in one round trip (see
+// handleGetManagerTodayView_ in DashboardAPI.gs) against a workbook already
+// confirmed to take 2+ minutes to open in the Sheets UI (see project notes)
+// -- the old flat 15s client timeout was very likely firing on a slow-but-
+// still-working request, not a genuinely dead connection. Given a longer
+// budget here specifically; other, lighter actions (verify-bed-activity,
+// resolve-exception) keep the original 15s default.
+const SNAPSHOT_TIMEOUT_MS = 60000;
+
 async function connectLive(url, {silent} = {}){
   if(!silent){ document.getElementById('conn-status').textContent = 'Connecting…'; }
   try{
-    const res = await callApi_(url, 'get-manager-today-view');
+    const res = await callApi_(url, 'get-manager-today-view', null, SNAPSHOT_TIMEOUT_MS);
     if(!res.success) throw new Error(res.error || 'Server returned an error');
     DATA = res.data;
     LIVE_MODE = true;
@@ -636,6 +646,13 @@ async function connectLive(url, {silent} = {}){
   } catch(err){
     setConnUI('error', 'Connection failed');
     document.getElementById('conn-status').textContent = err.message;
+    // Surface the retry controls automatically on failure -- previously
+    // this panel stayed collapsed unless the user clicked the conn-pill,
+    // so a failed auto-connect on page load looked like nothing had been
+    // attempted at all. Also pre-fill the URL box so Connect/Refresh are
+    // one click away, not a click-then-retype.
+    document.getElementById('conn-panel').classList.add('open');
+    if(url) document.getElementById('conn-url-input').value = url;
     return false;
   }
 }
@@ -695,8 +712,26 @@ function isPlantingActivity_(activityType){ return PLANTING_ACTIVITY_TYPES.index
 /* ---------- local persistence (this browser only) ---------- */
 const LS_KEY = 'vpos_dashboard_state_v1';
 function loadState(){
-  try{ return JSON.parse(localStorage.getItem(LS_KEY)) || {verified:{}, resolvedExceptions:{}}; }
-  catch(e){ return {verified:{}, resolvedExceptions:{}}; }
+  var s;
+  try{ s = JSON.parse(localStorage.getItem(LS_KEY)) || {verified:{}, resolvedExceptions:{}}; }
+  catch(e){ s = {verified:{}, resolvedExceptions:{}}; }
+  // ONE-TIME MIGRATION (2026-09-01): entries saved before today's bug fix
+  // may have a dob on a non-planting activity (an IrrigationCheck, Harvest,
+  // etc. verified back when this locked a DOB unconditionally) -- strip
+  // those dob values now so renderLifecycle() stops drawing lifecycle
+  // cards for them. The verified-pill/"done" state itself is untouched;
+  // only the wrongly-set dob is cleared. Uses SNAPSHOT (defined above,
+  // before this runs) to look up each entry's real Activity_Type.
+  Object.keys(s.verified || {}).forEach(function(logId){
+    var entry = s.verified[logId];
+    if(!entry || !entry.dob) return;
+    var row = (SNAPSHOT.field_activity_log || []).find(function(r){ return r.Log_ID === logId; });
+    if(row && !isPlantingActivity_(row.Activity_Type)){
+      entry.dob = null;
+    }
+  });
+  saveState(s);
+  return s;
 }
 function saveState(s){ localStorage.setItem(LS_KEY, JSON.stringify(s)); }
 let STATE = loadState();
@@ -1323,6 +1358,14 @@ document.addEventListener('click', async (e)=>{
     if(APPS_SCRIPT_URL) document.getElementById('conn-url-input').value = APPS_SCRIPT_URL;
     return;
   }
+  if(e.target.closest('#conn-quick-refresh-btn')){
+    // Always-visible retry, independent of the collapsible panel above --
+    // works whether currently connected, never connected, or failed.
+    const url = APPS_SCRIPT_URL || (document.getElementById('conn-url-input').value || '').trim();
+    if(!url){ document.getElementById('conn-panel').classList.add('open'); document.getElementById('conn-status').textContent = 'Paste your /exec URL first.'; return; }
+    connectLive(url);
+    return;
+  }
   if(e.target.closest('#conn-connect-btn')){
     const url = document.getElementById('conn-url-input').value.trim();
     if(!url){ document.getElementById('conn-status').textContent = 'Paste your /exec URL first.'; return; }
@@ -1330,9 +1373,16 @@ document.addEventListener('click', async (e)=>{
     return;
   }
   if(e.target.closest('#conn-refresh-btn')){
-    if(!LIVE_MODE){ document.getElementById('conn-status').textContent = 'Connect first.'; return; }
+    // BUG FIX (2026-09-01): this used to require LIVE_MODE already true, so
+    // if the initial auto-connect failed (the exact "Connection failed"/
+    // timeout case), clicking Refresh did nothing but print "Connect
+    // first." -- the one button a person reaches for after a failure was
+    // the one button that couldn't retry the connection. Falls back to
+    // whatever's in the URL box, then the last-known APPS_SCRIPT_URL.
+    const url = (document.getElementById('conn-url-input').value.trim()) || APPS_SCRIPT_URL;
+    if(!url){ document.getElementById('conn-status').textContent = 'Paste your /exec URL first.'; return; }
     document.getElementById('conn-status').textContent = 'Refreshing…';
-    connectLive(APPS_SCRIPT_URL);
+    connectLive(url);
     return;
   }
   if(e.target.closest('#conn-disconnect-btn')){
