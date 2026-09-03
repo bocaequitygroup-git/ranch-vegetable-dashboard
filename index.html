@@ -870,14 +870,26 @@ function renderLifecycle(){
     const r = DATA.field_activity_log.find(x=>x.Log_ID===logId);
     if(!r) return;
     const bed = bedById[r.Bed_ID] || {};
-    const coh = cohortById[r.Cohort_ID] || {};
-    const cropId = coh.Crop_ID;
+    // cohortMiss: the log row's Cohort_ID didn't match any COHORT_MASTER
+    // row in the data we got back. That's a data problem (or a sheet-join
+    // problem), not something the UI should paper over -- previously this
+    // fell through to a bare "Unknown crop" string with no indication
+    // *why*, which looks like the card itself is broken rather than
+    // flagging a specific row to go check on the sheet.
+    const coh = cohortById[r.Cohort_ID] || null;
+    const cohortMiss = !coh;
+    // Fall back to BED_MASTER.Current_Crop (a crop code, same shape as
+    // Crop_ID) when the cohort join misses -- it's frequently populated
+    // even when COHORT_MASTER is missing/mismatched for this cohort, and
+    // gets us a real crop name instead of a dead end.
+    const cropId = coh ? coh.Crop_ID : bed.Current_Crop;
     const dob = new Date(dobStr);
     const cropDay = Math.max(1, daysBetween(dob, TODAY)+1);
     const stage = computeStage(cropId, cropDay);
     const lc = lifecycleById[cropId];
     const harvest = lc ? parseRange(lc.Days_To_First_Harvest) : null;
     const estHarvest = harvest ? new Date(dob.getTime() + harvest.min*DAY_MS) : null;
+    const displayCrop = cropId ? cropName(cropId) : 'Crop unknown';
     const card = document.createElement('div');
     card.className = 'life-card';
     card.innerHTML = `
@@ -886,11 +898,12 @@ function renderLifecycle(){
         <div class="top">
           <div>
             <div class="bed">${r.Bed_ID} <span style="font-weight:400;color:#777;">· ${bed.Block_ID||''}</span></div>
-            <div class="crop">${cropName(cropId)} · ${r.Cohort_ID}</div>
+            <div class="crop">${displayCrop} · ${r.Cohort_ID}</div>
             <div class="loc">${bed.Zone_Type||''}</div>
           </div>
           <span class="stage-pill">${stage.label}</span>
         </div>
+        ${cohortMiss ? `<div class="row" style="color:#B8862A;font-size:12px;margin-top:4px;">⚠ No COHORT_MASTER row found for Cohort_ID "${r.Cohort_ID}" -- crop/stage shown from BED_MASTER as a fallback. Check the sheet.</div>` : ''}
         <div class="divider"></div>
         <div class="row"><span class="label">DOB (locked)</span><span class="val">${fmtDate(dob)}</span></div>
         <div class="row"><span class="label">Crop day</span><span class="val">Day ${cropDay}</span></div>
