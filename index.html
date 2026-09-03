@@ -648,6 +648,7 @@ async function connectLive(url, {silent} = {}){
     const res = await callApi_(url, 'get-manager-today-view', null, SNAPSHOT_TIMEOUT_MS);
     if(!res.success) throw new Error(res.error || 'Server returned an error');
     DATA = res.data;
+    rebuildIndexes();
     LIVE_MODE = true;
     APPS_SCRIPT_URL = url;
     localStorage.setItem(CONN_KEY, url);
@@ -675,6 +676,7 @@ function disconnectLive(){
   APPS_SCRIPT_URL = '';
   localStorage.removeItem(CONN_KEY);
   DATA = SNAPSHOT;
+  rebuildIndexes();
   setConnUI('', 'Snapshot mode');
   document.getElementById('conn-status').textContent = 'Back to the offline snapshot.';
   setFooterNote();
@@ -757,16 +759,32 @@ function saveState(s){ localStorage.setItem(LS_KEY, JSON.stringify(s)); }
 let STATE = loadState();
 
 /* ---------- lookups ---------- */
-const cropById = {};
-DATA.crop_reference.forEach(c=>cropById[c.Crop_ID]=c);
-const lifecycleById = {};
-DATA.crop_lifecycle.forEach(c=>lifecycleById[c.Crop_ID]=c);
-const bedById = {};
-DATA.bed_master.forEach(b=>bedById[b.Bed_ID]=b);
-const cohortById = {};
-DATA.cohort_master.forEach(c=>cohortById[c.Cohort_ID]=c);
-const userById = {};
-DATA.users.forEach(u=>userById[u.User_ID]=u.Full_Name || u.User_ID);
+// These five lookup tables are derived from DATA, which gets reassigned
+// wholesale in connectLive() (live fetch) and disconnectLive() (back to
+// SNAPSHOT). They must be rebuilt every time DATA changes -- previously
+// they were built once at script-load time from whatever DATA was at
+// that instant (the embedded snapshot), then never touched again, so a
+// live connect would still be looked up against stale snapshot-era IDs.
+// rebuildIndexes() is called once below at load, and again at the end of
+// connectLive()/disconnectLive() right after DATA is reassigned.
+let cropById = {};
+let lifecycleById = {};
+let bedById = {};
+let cohortById = {};
+let userById = {};
+function rebuildIndexes(){
+  cropById = {};
+  DATA.crop_reference.forEach(c=>cropById[c.Crop_ID]=c);
+  lifecycleById = {};
+  DATA.crop_lifecycle.forEach(c=>lifecycleById[c.Crop_ID]=c);
+  bedById = {};
+  DATA.bed_master.forEach(b=>bedById[b.Bed_ID]=b);
+  cohortById = {};
+  DATA.cohort_master.forEach(c=>cohortById[c.Cohort_ID]=c);
+  userById = {};
+  DATA.users.forEach(u=>userById[u.User_ID]=u.Full_Name || u.User_ID);
+}
+rebuildIndexes();
 function workerName(id){ return userById[id] || id; }
 function cropName(id){ return (cropById[id] && cropById[id].Crop_Name) || id || 'Unknown crop'; }
 
