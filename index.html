@@ -719,8 +719,14 @@ function toast(msg){
    card off ANY verified activity row, and snapshot mode's click handler
    locked a DOB the same unconditional way -- same root cause as the
    server-side handleVerifyBedActivity_ bug, just duplicated here in the
-   client. Keep this list in sync with DashboardAPI.gs's copy. */
-const PLANTING_ACTIVITY_TYPES = ['Seeding', 'Replanting'];
+   client. Keep this list in sync with DashboardAPI.gs's copy.
+   UPDATED 2026-09-03: added 'Transplanting', matching the same-day fix to
+   PLANTING_ACTIVITY_TYPES_ in DashboardAPI.gs. This copy was missed when
+   that server-side fix went in, which is why B1-01's verified Transplanting
+   row (LOG-25bd05fe) locked its DOB/state correctly on the sheet but never
+   rendered as an Active Lifecycle Card here -- renderLifecycle()'s live-mode
+   filter (isPlantingActivity_ below) was silently dropping it. */
+const PLANTING_ACTIVITY_TYPES = ['Seeding', 'Transplanting', 'Replanting'];
 function isPlantingActivity_(activityType){ return PLANTING_ACTIVITY_TYPES.indexOf(activityType) !== -1; }
 
 /* ---------- local persistence (this browser only) ---------- */
@@ -1185,13 +1191,20 @@ function renderFounder(){
 
   // KPIs
   const beds = DATA.bed_master;
+  // 'Rest' is the real idle/unplanted state (confirmed against the live
+  // BED_MASTER export -- see DashboardAPI.gs's lockBedDob_ comment).
+  // 'Prep' is never written by anything in this codebase; a prior version
+  // of this function computed a prepBeds count off that dead state and
+  // never rendered it (or restBeds) into any KPI at all -- removed rather
+  // than "fixed" onto 'Rest', since restBeds below already covers that and
+  // a second identical metric would be redundant.
   const restBeds = beds.filter(b=>b.Current_State==='Rest').length;
-  const prepBeds = beds.filter(b=>b.Current_State==='Prep').length;
   const verifiedCount = Object.keys(STATE.verified).length;
   const totalTargetLbs = DATA.cohort_master.reduce((s,c)=>s+(Number(c.Target_Qty_Lbs)||0),0);
   const kpis = [
     {n: beds.length, l:'Total Beds Tracked', s:'231 field + 42 protected structures'},
-    {n: DATA.cohort_master.length, l:'Cohorts Staged', s:'All currently in Prep'},
+    {n: restBeds, l:'Beds Resting / Unplanted', s:`${beds.length-restBeds} active (Planted or beyond)`},
+    {n: DATA.cohort_master.length, l:'Cohorts Staged', s:'Wave 01 -- one per crop'},
     {n: verifiedCount, l:'Beds Verified Live', s:'DOB locked, this session'},
     {n: DATA.restaurant_demand.length, l:'Demand Line Items', s:'7 restaurant partners'},
     {n: totalTargetLbs.toLocaleString(), l:'Target Lbs (all cohorts)', s:'Sum of Target_Qty_Lbs'},
@@ -1218,7 +1231,9 @@ function renderFounder(){
   const stateCounts = {};
   beds.forEach(b=>{ stateCounts[b.Current_State] = (stateCounts[b.Current_State]||0)+1; });
   const total = beds.length;
-  const colors = {Prep:'#B8862A', Rest:'#8A8D77', Growing:'#57724E', Harvestable:'#6B5B8C'};
+  // Full 7-stage sequence (Code_main.gs SYSTEM_CONFIG.FIELD_STATE_SEQUENCE)
+  // minus 'Prep', which nothing ever writes (see restBeds note above).
+  const colors = {Rest:'#8A8D77', Planted:'#B8862A', Growing:'#57724E', Harvestable:'#6B5B8C', Harvested:'#4C6B8A', Cleanup:'#A0522D'};
   let capHtml = `<div class="capacity-bar">`;
   Object.entries(stateCounts).forEach(([state,n])=>{
     const pct = (n/total*100);
