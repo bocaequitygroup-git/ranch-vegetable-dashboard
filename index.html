@@ -211,6 +211,12 @@
     border-radius:var(--radius); padding:13px 15px; margin-bottom:10px;
   }
   .exc-card.resolved{border-left-color:var(--moss); background:var(--ok-bg); border-color:var(--ok-line); opacity:0.7;}
+  /* Fix #1 (2026-09-06): a DISMISSED (closed-without-verifying) exception
+     is deliberately NOT styled like a genuine RESOLVED one -- reusing the
+     same green/moss "handled" look here is exactly the misreading this
+     fix exists to prevent. Amber matches sev-med/verify-row's existing
+     "needs attention" palette instead of inventing a new color. */
+  .exc-card.dismissed{border-left-color:var(--amber); background:var(--amber-soft); border-color:var(--amber); opacity:0.85;}
   .exc-head{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;}
   .exc-title{font-weight:700; font-size:13.5px;}
   .sev-pill{font-size:10px; font-weight:700; padding:2px 8px; border-radius:9px; text-transform:uppercase; letter-spacing:0.04em;}
@@ -1154,9 +1160,18 @@ function renderExceptions(){
     const resolvedLocally = !!STATE.resolvedExceptions[e.Exception_ID];
     const isOpen = e.Status==='OPEN' && !resolvedLocally;
     if(isOpen) openCount++;
+    // Fix #1 (2026-09-06): a closed UNVERIFIED_PLANTING exception can now
+    // come back from the sheet with Status='DISMISSED' instead of
+    // 'RESOLVED' (see writeExceptionResolution_/resolveUnverifiedPlantingException_,
+    // Code_main.gs) -- read straight off that real status distinction
+    // rather than relabeling a single bucket client-side, so this can
+    // never drift out of sync with what the backend actually did.
+    // Snapshot/demo mode has no such distinction (STATE.resolvedExceptions
+    // is a bare boolean), so it always reads as the plain "Resolved" pill.
+    const isDismissed = e.Status==='DISMISSED';
     const sevClass = {LOW:'sev-low', MEDIUM:'sev-med', HIGH:'sev-high'}[e.Severity] || 'sev-low';
     const div = document.createElement('div');
-    div.className = 'exc-card' + (isOpen ? '' : ' resolved');
+    div.className = 'exc-card' + (isOpen ? '' : (isDismissed ? ' dismissed' : ' resolved'));
     div.innerHTML = `
       <div class="exc-head">
         <div class="exc-title">${e.Bed_ID} — ${e.Exception_Type}</div>
@@ -1168,7 +1183,9 @@ function renderExceptions(){
       <div class="exc-actions">
         <button class="btn btn-ghost" data-dispatch="${e.Exception_ID}">Dispatch task</button>
         <button class="btn btn-danger" data-resolve="${e.Exception_ID}">Resolve exception</button>
-      </div>` : `<div class="exc-actions"><span class="stage-pill" style="background:var(--ok-bg);color:var(--moss-dark);">Resolved</span></div>`}
+      </div>` : (isDismissed
+        ? `<div class="exc-actions"><span class="stage-pill" style="background:var(--amber-soft);color:#7A5A16;">Dismissed — Not Verified</span></div>`
+        : `<div class="exc-actions"><span class="stage-pill" style="background:var(--ok-bg);color:var(--moss-dark);">Resolved</span></div>`)}
     `;
     body.appendChild(div);
   });
@@ -1380,15 +1397,34 @@ document.addEventListener('click', async (e)=>{
     if(LIVE_MODE){
       resolveBtn.disabled = true; resolveBtn.textContent = 'Resolving…';
       try{
-        const res = await callApi_(APPS_SCRIPT_URL, 'resolve-exception', {exceptionId:excId, managerId:'USR-MANAGER1'});
+        // Fix #2 (2026-09-06): resolve-exception can now come back
+        // success:false with requiresForceDismiss:true for an
+        // UNVERIFIED_PLANTING exception whose planting was never
+        // actually verified (see resolveUnverifiedPlantingException_,
+        // Code_main.gs) -- checked BEFORE throwing, since that response
+        // is a real decision point for the manager, not a plain error.
+        let res = await callApi_(APPS_SCRIPT_URL, 'resolve-exception', {exceptionId:excId, managerId:'USR-MANAGER1'});
+        if(!res.success && res.requiresForceDismiss){
+          const proceed = confirm(
+            'This planting has not been verified yet -- ' + res.error.replace(/^Cannot resolve: /,'') + '\n\n' +
+            'Dismiss this exception WITHOUT verifying the planting?\n' +
+            '(Click Cancel to leave it open until the activity is completed, so resolving it can verify and lock the DOB automatically.)'
+          );
+          if(!proceed){ toast('Left open — verify the planting once the activity is complete.'); renderAll(); return; }
+          const note = prompt('Required: why are you dismissing this without verifying the planting?', '');
+          if(!note || !note.trim()){ toast('Dismiss cancelled — a note is required.'); renderAll(); return; }
+          res = await callApi_(APPS_SCRIPT_URL, 'resolve-exception', {exceptionId:excId, managerId:'USR-MANAGER1', forceDismiss:true, resolutionNotes:note.trim()});
+        }
         if(!res.success) throw new Error(res.error);
-        toast(`Exception ${excId} resolved in the sheet.`);
+        toast(res.autoVerified
+          ? `${excId}: planting verified, DOB locked, exception resolved.`
+          : (res.dismissed ? `Exception ${excId} dismissed — not verified.` : `Exception ${excId} resolved in the sheet.`));
         await connectLive(APPS_SCRIPT_URL, {silent:true});
       }catch(err){ toast('Could not resolve: ' + err.message); renderAll(); }
     } else {
       STATE.resolvedExceptions[excId] = true;
       saveState(STATE);
-      toast(`Exception ${excId} resolved. (snapshot mode, not saved to the sheet)`);
+      toast(`Exception ${excId} resolved. (snapshot mode, not saved to the sheet — the live verification guardrail isn't simulated here)`);
       renderAll();
     }
     return;
